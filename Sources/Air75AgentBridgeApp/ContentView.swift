@@ -268,6 +268,21 @@ struct OverviewView: View {
         store.inputMonitoringGranted && store.accessibilityGranted
     }
 
+    private var assignedKeyCount: Int {
+        store.activeKeyBindings.filter(\.isSupportedInputSource).count
+    }
+
+    private var controlStatus: String {
+        if assignedKeyCount == 0 { return language.text("尚未分配按键", "No keys assigned") }
+        if !store.codexDesktopKeybindingsInstalled {
+            return language.text("Codex 快捷键中继需要修复", "Codex shortcut relay needs repair")
+        }
+        if !store.configuration.enabled || !store.dedicatedEventSuppressionActive {
+            return language.text("正在启动按键捕获", "Starting key capture")
+        }
+        return language.text("已启用", "Active")
+    }
+
     private var isReady: Bool {
         store.currentDevice != nil && controlsReady && permissionsReady && store.configuration.enabled
     }
@@ -339,15 +354,15 @@ struct OverviewView: View {
                             title: language.text("Codex 控制", "Codex control"),
                             value: store.hardwareProfileBusy
                                 ? language.text("正在配置", "Configuring")
-                                : (controlsReady
-                                    ? language.text("已配置", "Configured")
-                                    : (store.currentHardwareProfileNeedsInstallation ? language.text("需要配置当前键盘", "Keyboard setup required") : language.text("需要配置", "Setup required"))),
+                                : controlStatus,
                             ready: controlsReady,
                             actionTitle: store.hardwareProfileBusy || controlsReady
-                                ? nil : (store.currentHardwareProfileNeedsInstallation ? language.text("配置", "Configure") : language.text("修复", "Repair")),
+                                ? nil : (assignedKeyCount == 0
+                                    ? language.text("设置按键", "Set Up Keys")
+                                    : (!store.codexDesktopKeybindingsInstalled ? language.text("修复", "Repair") : nil)),
                             action: {
-                                if store.currentHardwareProfileNeedsInstallation { store.oneClickEnable() }
-                                else { store.installCodexDesktopBindings() }
+                                if assignedKeyCount == 0 { store.showOnboarding = true }
+                                else if !store.codexDesktopKeybindingsInstalled { store.installCodexDesktopBindings() }
                             }
                         )
                         Divider().padding(.leading, 44)

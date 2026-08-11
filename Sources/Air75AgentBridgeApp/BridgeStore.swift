@@ -93,7 +93,18 @@ final class BridgeStore: ObservableObject {
     private var hardwareProfileVerificationFailures = Set<String>()
 
     init() {
-        let loaded = configurationStore.load()
+        var loaded = configurationStore.load()
+        let hasAssignedKey = loaded.keyBindings.contains(where: \.isSupportedInputSource)
+            || (loaded.modelKeyBindings?.values.contains(where: {
+                $0.contains(where: \.isSupportedInputSource)
+            }) == true)
+        if loaded.hasCompletedOnboarding && hasAssignedKey {
+            loaded.enabled = true
+            loaded.codexModeEnabled = true
+            loaded.mappingMode = .runtime
+            loaded.mappingPausedByUser = false
+            try? configurationStore.save(loaded)
+        }
         configuration = loaded
         hardwareProfileMessage = "软件按键分配模式；键盘键位表保持原样"
         showOnboarding = !loaded.hasCompletedOnboarding
