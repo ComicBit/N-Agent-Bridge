@@ -23,7 +23,7 @@ keyboard profiles or reuse an unverified driver.
 4. S4 responses have no transaction ID. Keymap, lighting, per-key RGB reads, and sleep frames must be serialized through `NuPhyHIDOperationCoordinator`.
 5. Read and persist a backup before writing; require ACK, delayed readback, and strict verification; attempt recovery on failure.
 6. Read D5 handles 0 and 1, but write only macOS handle 0. Firmware 1.0.16.6 normalizes unused Windows handle 1 metadata; do not modify it.
-7. D2 per-key RGB reads are read-only. The old guessed D8 write is disabled; do not send it or any replacement until a real NuPhyIO per-key transaction is captured and verified. Split sparse reads into contiguous windows no larger than 54 payload bytes.
+7. Before a D8 per-key RGB write, read and persist the original colors through D2. Require ACK and exact delayed D2 readback after writing; restore the original colors on failure. Split sparse reads into contiguous windows no larger than 54 payload bytes.
 8. The keymap must be exactly 1,568 bytes. Never persist encrypted, unknown-layout, or mixed-partial reads as an original backup. On official 1.0.16.6, only layer 8 knob press position p60 may be empty `0x0000`; normalize it to `0x0048` during installation. Do not widen that exception.
 9. Never send `0xEF SetIapMode`, `0xF1 RestoreFactory`, or guessed firmware commands.
 10. Never delete `~/Library/Application Support/Air75AgentBridge/Backups`.
@@ -32,7 +32,7 @@ keyboard profiles or reuse an unverified driver.
 
 - The first wired setup changes physical F1-F12 to F13-F24 and maps the knob to unique dedicated events, then performs a complete readback.
 - Every USB-C reconnect checks the real keyboard keymap. If a firmware update restores the native layers, setup is required again.
-- F1-F6 / custom Agent key events use the verified keymap path. Their per-key RGB state is read through D2, but color writes remain **REQUIRES HARDWARE VERIFICATION**. Esc is index 0, F1-F6 are indexes 1-6, and legacy Tab index 30 is only a read-map compatibility entry.
+- F1-F6 / custom Agent key events use the verified keymap path and D8 to display five task states, with D2 exact readback and recovery. Esc is index 0, F1-F6 are indexes 1-6, and legacy Tab index 30 is only a compatibility entry when it is not the current binding.
 - Agent assignment uses stable thread IDs and supports recent, pinned, priority, and custom sources.
 - Input Monitoring and Accessibility must be granted by the user; the app cannot silently approve them.
 - Bluetooth has no verified S4 lighting channel and must not be presented as supporting live lighting configuration.
@@ -50,10 +50,9 @@ swift build --disable-sandbox -c release --product Air75ProtocolProbe
 .build/release/Air75ProtocolProbe --hardware-validate
 ```
 
-Physical validation must report D6 original and temporary readback, read-only
-D2 per-key colors, the B2 keymap, and final restoration as PASS. Per-key RGB
-writing remains **REQUIRES HARDWARE VERIFICATION** and the probe must not send
-D8. The probe persists a backup before testing.
+Physical validation must report D6 original and temporary readback, D8 original
+and temporary values with exact D2 readback, the B2 keymap, and final restoration
+as PASS. The probe persists a backup before testing.
 
 Release work uses `scripts/build-release.sh`, `scripts/create-dmg.sh`, and
 `scripts/verify-release.sh`. Before release, also run the app-bundle resource
