@@ -71,5 +71,5 @@ swift run --disable-sandbox air75 led get F13
 
 `F1` and `F13` resolve to the same physical F1 key because the installed
 hardware profile changes the HID event name without moving the RGB read
-address. `led get` accepts only names resolved by this map. Per-key writes are
-disabled pending hardware verification.
+address. `led get` accepts only names resolved by this map. D8 per-key writes
+are verified through exact D2 readback over USB-C and the official U1 receiver.

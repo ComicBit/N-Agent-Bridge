@@ -800,7 +800,7 @@ struct LightingView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             HStack(alignment: .top) {
-                PageTitle(title: language.text("灯光", "Lighting"), subtitle: language.text("普通背光与逐键 RGB 读回；逐键写入待实机验证", "Standard backlight and per-key RGB reads; per-key writes pending hardware verification"))
+                PageTitle(title: language.text("灯光", "Lighting"), subtitle: language.text("普通背光与逐键 RGB；USB-C 与 U1 均已验证", "Standard backlight and per-key RGB; verified over USB-C and U1"))
                 Spacer()
                 HStack(spacing: 10) {
                     StatusPill(
@@ -888,7 +888,7 @@ struct LightingView: View {
                 .disabled(!store.lightingAvailable || store.lightingBusy || !store.fullLightingControlSupported)
                 .overlay(alignment: .bottomLeading) {
                     if store.lightingAvailable && !store.fullLightingControlSupported {
-                        Text(language.text("逐键 RGB 写入仍待实机验证；普通背光保持键盘原设置。", "Per-key RGB writing is pending hardware verification; the standard backlight keeps its keyboard settings."))
+                        Text(language.text("当前型号仅支持已验证的逐键 RGB；普通背光保持键盘原设置。", "This model supports only verified per-key RGB; standard backlight keeps its keyboard settings."))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 20)
@@ -900,7 +900,7 @@ struct LightingView: View {
             PremiumCard {
                 VStack(alignment: .leading, spacing: 20) {
                     HStack(alignment: .top) {
-                        CardHeading(icon: "bolt.horizontal.circle", title: language.text("Codex 任务状态灯", "Codex task status lights"), subtitle: language.text("逐键 RGB 写入待实机验证；不会改变普通侧灯", "Per-key RGB writing is pending hardware verification; standard side lights are not changed"))
+                        CardHeading(icon: "bolt.horizontal.circle", title: language.text("Codex 任务状态灯", "Codex task status lights"), subtitle: language.text("逐键 RGB 已验证；不会改变普通侧灯", "Verified per-key RGB; standard side lights are not changed"))
                         Spacer()
                         Toggle("", isOn: Binding(
                             get: { store.configuration.agentLightingEnabled == true && store.signalLightingSupported },
@@ -946,7 +946,7 @@ struct LightingView: View {
                                     )
                                 }
                             }
-                            Text(language.text("颜色会保存在本机；逐键 RGB 写入通过实机验证后才会应用到 Agent 实体键。", "Colors are stored on this Mac; they will apply to Agent keys only after the per-key RGB write path is hardware-verified."))
+                            Text(language.text("颜色保存在本机，并通过当前 USB-C 或 U1 通道应用到 Agent 实体键。", "Colors are stored on this Mac and applied to Agent keys over the active USB-C or U1 route."))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -1023,7 +1023,7 @@ struct LightingView: View {
     private var lightingConnectionHint: String {
         if !store.lightingAvailable { return language.runtimeText(store.lightingMessage) }
         if !store.signalLightingSupported {
-            return language.text("已读取普通灯光与逐键 RGB；逐键颜色写入待实机验证。", "Zone lighting and per-key RGB reads are available; per-key color writing is pending hardware verification.")
+            return language.text("已读取普通灯光；当前型号不支持已验证的逐键写入。", "Zone lighting is available; this model has no verified per-key writer.")
         }
         switch store.lightingConnection {
         case .twoPointFourGHzReceiver:
@@ -1050,7 +1050,7 @@ struct LightingView: View {
 }
 
 /// Six stable Agent slots; labels and physical key bindings stay separate
-/// from the still-unverified per-key RGB write path.
+/// from the verified transport-specific per-key RGB writer.
 struct SixTaskStatusRow: View {
     @Environment(\.interfaceLanguage) private var language
     let tasks: [CodexTaskLightSnapshot]
@@ -1081,7 +1081,7 @@ struct SixTaskStatusRow: View {
                     .help(snapshot.map { language.text("任务 \(index + 1)：\(localizedTaskLightState($0.state, language))", "Task \(index + 1): \(localizedTaskLightState($0.state, language))") } ?? language.text("任务 \(index + 1)：未分配", "Task \(index + 1): Unassigned"))
                 }
             }
-            Text(language.text("六个 Agent 键按当前来源模式绑定；逐键灯光功能将在写入路径验证后跟随实体位置", "Six Agent keys follow the selected source mode; per-key lighting will follow their physical locations after the write path is verified."))
+            Text(language.text("六个 Agent 键按当前来源模式绑定；逐键灯光会自动跟随实体位置", "Six Agent keys follow the selected source mode; per-key lighting automatically follows their physical locations."))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -1632,7 +1632,7 @@ private func localizedCapabilitySummary(_ summary: String, _ language: Interface
     guard language == .english else { return summary }
     if summary == "等待识别型号" { return "Waiting to identify model" }
     if summary == "完整硬件控制" { return "Full hardware control" }
-    if summary.contains("整键背光与侧灯已验证") { return "Function keys and knob configured · zone lighting verified · per-key RGB pending hardware verification" }
+    if summary.contains("整键背光与侧灯已验证") { return "Function keys and knob configured · zone and per-key RGB verified" }
     if summary.contains("状态灯已验证") { return "Keys, knob, and Agent status lights verified" }
     if summary.contains("硬件控制已配置") { return "Function keys and knob configured · lighting pending validation" }
     if summary.contains("可配置 F 区") { return "Function keys and knob can be configured · lighting pending validation" }

@@ -35,6 +35,11 @@ not re-run by the current software-only bootstrap unless explicitly stated.
   D5/D6 and D2/D8 through the most recently active USB-C or U1 input path, and
   restores the complete palette and original mode when Agent lighting is
   disabled. Pending backups survive relaunch until restoration completes.
+- Completed a real signed-app USB-C lifecycle test: enabling created a complete
+  pending backup and changed F1 from `#4C4C4C` to task blue `#168BFF`; disabling
+  restored F1 and marked that backup restored; re-enabling created one new
+  backup; and relaunch reused it without overwriting the recovery point. The
+  app was then quit cleanly.
 
 ## 0.15.0: Bilingual interface and distribution cleanup
 
