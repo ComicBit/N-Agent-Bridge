@@ -4,6 +4,7 @@ import SwiftUI
 
 @main
 struct Air75AgentBridgeApp: App {
+    @NSApplicationDelegateAdaptor(AppLifecycleDelegate.self) private var appDelegate
     @StateObject private var store = BridgeStore()
     @AppStorage("interfaceLanguage") private var interfaceLanguageRawValue = InterfaceLanguage.systemDefault.rawValue
 
@@ -27,6 +28,7 @@ struct Air75AgentBridgeApp: App {
                 .environment(\.locale, interfaceLanguage.locale)
                 .background(WindowPlacementGuard())
                 .frame(minWidth: 860, minHeight: 620)
+                .onAppear { appDelegate.store = store }
         }
         .defaultSize(width: 1180, height: 780)
         .windowResizability(.contentMinSize)
@@ -51,12 +53,8 @@ struct Air75AgentBridgeApp: App {
                      : interfaceLanguage.text("Codex 控制已停止", "Codex control is off"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Button(store.configuration.enabled
-                       ? interfaceLanguage.text("停止并恢复键盘", "Stop and restore keyboard")
-                       : interfaceLanguage.text("启用控制", "Enable control")) {
-                    if store.configuration.enabled && !store.currentHardwareProfileNeedsInstallation {
-                        store.disable()
-                    } else {
+                if !store.configuration.enabled {
+                    Button(interfaceLanguage.text("启用控制", "Enable control")) {
                         store.oneClickEnable()
                     }
                 }
@@ -67,6 +65,20 @@ struct Air75AgentBridgeApp: App {
         } label: {
             Label("N Agent Bridge", systemImage: store.currentDevice == nil ? "keyboard.badge.ellipsis" : "keyboard.fill")
         }
+    }
+}
+
+@MainActor
+private final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
+    weak var store: BridgeStore?
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        store?.restoreBeforeTermination()
+        return .terminateNow
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
     }
 }
 

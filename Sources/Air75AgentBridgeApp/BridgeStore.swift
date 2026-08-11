@@ -592,6 +592,40 @@ final class BridgeStore: ObservableObject {
         finishSoftwareDisable(message: "Codex 控制已停止；键盘键位始终保持原样")
     }
 
+    /// Called synchronously by NSApplicationDelegate before process exit so
+    /// selected keys stop being intercepted and the complete pre-Agent
+    /// lighting palette/mode is restored before no process remains to recover.
+    func restoreBeforeTermination() {
+        configuration.enabled = false
+        configuration.codexModeEnabled = false
+        configuration.mappingPausedByUser = true
+        persistConfiguration()
+        dedicatedKeyEventSuppressor.stop()
+        guard let controller = currentLightingDriver else { return }
+        do {
+            if let pending = configurationStore.loadPendingSignalLightingBackup(
+                profileID: controller.profileID
+            ) {
+                let current = try controller.readStates()
+                if current.first(where: { $0.handle == 0 })?.backlight.mode
+                    != Air75BacklightMode.signalIndicator.rawValue {
+                    _ = try controller.setBacklight(mode: .signalIndicator, brightness: nil, color: nil)
+                }
+                for start in stride(from: 0, to: pending.backup.signalLights.count, by: 14) {
+                    let end = min(start + 14, pending.backup.signalLights.count)
+                    _ = try controller.setSignalLights(Array(pending.backup.signalLights[start..<end]))
+                }
+                _ = try controller.restore(pending.backup.states)
+                try configurationStore.markSignalLightingBackupRestored(pending.backup, at: pending.url)
+            } else {
+                let saved = userSignalLightsByIndex.values.sorted { $0.index < $1.index }
+                if !saved.isEmpty { _ = try controller.setSignalLights(saved) }
+            }
+        } catch {
+            UserDefaults.standard.set(error.localizedDescription, forKey: "TerminationLightingRestoreError")
+        }
+    }
+
     func restoreOriginalConfiguration() {
         finishSoftwareDisable(message: "Codex 控制已停止；没有键盘键位需要恢复")
     }
@@ -828,15 +862,58 @@ final class BridgeStore: ObservableObject {
         lastMessage = "已分配 \(learnedName) → \(actionName)"
     }
 
+    func removeBinding(_ index: Int) {
+        guard activeKeyBindings.indices.contains(index) else { return }
+        var bindings = activeKeyBindings
+        let removed = bindings[index]
+        bindings[index].usagePage = 0
+        bindings[index].usage = 0
+        bindings[index].signalLightIndex = nil
+        configuration.setBindings(bindings, for: currentDevice?.profileID)
+        persistConfiguration()
+        deviceManager.configuration = configuration
+        mappingEngine.configuration = configuration
+        lastAgentSignalLights = nil
+        failedAgentSignalLights = nil
+        let hasRemainingStatusKey = bindings.prefix(6).contains { $0.signalLightIndex != nil }
+        if !hasRemainingStatusKey {
+            restoreUserSignalLights()
+            lastMessage = "已移除 \(removed.action.displayName) 的按键分配"
+            return
+        }
+        if let lightIndex = removed.signalLightIndex,
+           let byteIndex = UInt8(exactly: lightIndex),
+           let original = userSignalLightsByIndex.removeValue(forKey: byteIndex)
+                ?? configurationStore.loadPendingSignalLightingBackup(
+                    profileID: currentLightingDriver?.profileID ?? "nuphy.air75-v3"
+                )?.backup.signalLights.first(where: { $0.index == byteIndex }),
+           let controller = currentLightingDriver,
+           !lightingBusy {
+            lightingBusy = true
+            Task {
+                do {
+                    _ = try await Task.detached(priority: .userInitiated) {
+                        try controller.setSignalLights([original])
+                    }.value
+                    lightingMessage = "已恢复 \(removed.displayName) 的原色"
+                } catch {
+                    userSignalLightsByIndex[byteIndex] = original
+                    lightingMessage = "恢复 \(removed.displayName) 原色失败：\(error.localizedDescription)"
+                }
+                lightingBusy = false
+                if configuration.enabled { syncAgentLighting() }
+            }
+        }
+        lastMessage = "已移除 \(removed.action.displayName) 的按键分配"
+    }
+
     func resetBindingsToPhysicalFunctionKeys() {
-        let defaults = installedHardwareProfileIsCurrent
-            ? BridgeConfiguration.hardwareProfileBindings : BridgeConfiguration.defaultBindings
-        configuration.setBindings(defaults, for: currentDevice?.profileID)
+        configuration.setBindings(BridgeConfiguration.defaultBindings, for: currentDevice?.profileID)
         learningBindingIndex = nil
         pendingLearningEvent = nil
         deviceManager.calibrationMode = false
         persistConfiguration()
-        lastMessage = "\(currentModelName) 已恢复为实体 F1–F12 默认映射"
+        lastMessage = "已清除 \(currentModelName) 的所有按键分配"
         lastAgentSignalLights = nil
         if lightingAvailable { syncAgentLighting() }
     }
@@ -1558,18 +1635,6 @@ final class BridgeStore: ObservableObject {
         let actions: [BridgeAction] = [.agent1, .agent2, .agent3, .agent4, .agent5, .agent6]
         var desiredByIndex: [UInt8: Air75SignalLight] = [:]
         let off = Air75RGBColor(red: 0, green: 0, blue: 0)
-        let activeIndices = Set(actions.compactMap { action -> UInt8? in
-            guard let value = activeKeyBindings.first(where: { $0.action == action })?.signalLightIndex,
-                  (0...255).contains(value) else { return nil }
-            return UInt8(value)
-        })
-        let staleIndices = Set(SignalLightLayout.staleManagedIndices(layoutID: currentSignalLightLayoutID)
-            .compactMap { (0...255).contains($0) ? UInt8($0) : nil })
-        let indicesToClear = managedSignalLightIndices
-            .union(Air75V3LightingController.taskSignalLightIndices)
-            .union(staleIndices)
-            .subtracting(activeIndices)
-        for index in indicesToClear { desiredByIndex[index] = Air75SignalLight(index: index, color: off) }
         for (taskIndex, action) in actions.enumerated() {
             guard let value = activeKeyBindings.first(where: { $0.action == action })?.signalLightIndex,
                   (0...255).contains(value) else { continue }
@@ -1582,15 +1647,6 @@ final class BridgeStore: ObservableObject {
                     : (Air75RGBColor(hex: taskLightColorHex(for: snapshot.state)) ?? off))
             desiredByIndex[index] = Air75SignalLight(index: index, color: color)
         }
-        managedSignalLightIndices.formUnion(activeIndices)
-        // 0.10.0 accidentally wrote task 1 to index 0 (Esc). If the per-key
-        // writer is re-enabled after verification, clear that stale index
-        // while writing the six real F-row indexes.
-        let escapeOff = Air75SignalLight(
-            index: Air75V3LightingController.escapeSignalLightIndex,
-            color: Air75RGBColor(red: 0, green: 0, blue: 0)
-        )
-        desiredByIndex[Air75V3LightingController.escapeSignalLightIndex] = escapeOff
         return desiredByIndex.values.sorted { $0.index < $1.index }
     }
 
@@ -1614,7 +1670,7 @@ final class BridgeStore: ObservableObject {
             && (lastAgentSignalWriteAt.map { now.timeIntervalSince($0) >= 90 } ?? true)
         let retryDue = failedAgentSignalLights == desired
             && (lastAgentSignalAttemptAt.map { now.timeIntervalSince($0) >= 30 } ?? true)
-        guard desired.count >= 2,
+        guard !desired.isEmpty,
               lastAgentSignalLights != desired || keepaliveDue,
               failedAgentSignalLights != desired || retryDue,
               let controller = currentLightingDriver else { return }

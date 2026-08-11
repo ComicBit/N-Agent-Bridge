@@ -1,36 +1,32 @@
 # Air75 V3 Keymap
 
-| Physical key | Installed hardware value | Default action |
+| Action slot | Initial physical key | Runtime behavior |
 | --- | --- | --- |
-| F1-F6 | F13-F18 | Agent 1-6 |
-| F7 | F19 | Fast Mode |
-| F8 / F9 | F20 / F21 | Approve / Decline |
-| F10 | F22 | New task |
-| F11 | F23 | Native Codex dictation |
-| F12 | F24 | Send |
+| Agent 1-6 | Unassigned | User-selected key is intercepted while running |
+| Quick action / Approve / Decline | Unassigned | User-selected key is intercepted while running |
+| New task / Dictation / Send | Unassigned | User-selected key is intercepted while running |
 
-**Connect and Enable** first reads and persists the complete 1,568-byte
-keymap, then changes physical F1-F12 to F13-F24 in the macOS/Windows base
-layers. Knob left, press, and right become Scroll Lock, Pause, and Print
-Screen so the app can identify reasoning-level controls. All other matrix
-bytes remain unchanged.
+The shipping app never writes the Air75 keymap. Setup starts with twelve
+unassigned action slots. The user selects an action and clicks a physical key
+in the graphical keyboard. The app persists that HID usage and intercepts it
+only while the process is running.
 
-Every write begins with the official `0xEE` session handshake, writes B3 in
-chunks, and reads the complete 1,568 bytes back with B2 for byte-for-byte
-verification. A length, original-layout, ACK, or readback failure stops the
-operation and attempts to restore the pre-write map. Unverified ciphertext is
-never saved as an original backup.
+Removing an assignment immediately stops interception and restores that key's
+saved RGB value. Quitting restores the complete pre-Agent RGB palette and
+lighting mode before termination.
 
-At launch and after USB-C reconnect, the app reads the keyboard to verify the
-installed layer instead of trusting only the local configuration. If a
-firmware update restores F1-F12, the UI asks for setup again. Known historical
-`F13 / F15 / Tab / F16...` corruption is repaired exactly; genuine user
-customizations are not overwritten.
+Protected developer recovery tooling can still read, validate, snapshot, and
+restore a complete 1,568-byte map, but those operations are not reachable from
+the product UI.
+
+Developer recovery writes begin with the official `0xEE` session handshake,
+write B3 in chunks, and require a complete B2 byte-for-byte readback. This is
+recovery tooling only, not product setup.
 
 The **Keys** page can learn actions onto numbers, letters, the F-row, or
 navigation keys. Custom ordinary keys are software mappings: when control is
 enabled, a CGEvent session tap consumes the original character, and stopping
-control releases it. `usage 0xFFFFFFFF` is an HID-array placeholder and must
+the app quits or the assignment is removed. `usage 0xFFFFFFFF` is an HID-array placeholder and must
 be rejected by both the learner and runtime.
 
 D2/D8 per-key RGB management uses the current physical HID usage. The ANSI

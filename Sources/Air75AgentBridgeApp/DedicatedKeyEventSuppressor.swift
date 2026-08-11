@@ -77,7 +77,7 @@ final class DedicatedKeyEventSuppressor: @unchecked Sendable {
         publishState(running: true, reason: "Air75 专用事件已从 macOS 系统功能中隔离")
     }
 
-    private func stop() {
+    func stop() {
         lock.lock()
         let tap = eventTap
         let source = runLoopSource

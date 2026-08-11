@@ -53,6 +53,7 @@ private func printUsage() {
       air75 list
       air75 info
       air75 keymap snapshot
+      air75 bindings clear
       air75 led map
       air75 led get <KEY>
 
@@ -188,6 +189,22 @@ private func run(_ arguments: [String]) throws {
         }
     case "led":
         try runLEDCommand(Array(arguments.dropFirst()))
+    case "bindings":
+        guard arguments.count == 2, arguments[1] == "clear" else {
+            throw DeveloperCLIError.usage
+        }
+        let store = ConfigurationStore()
+        var configuration = store.load()
+        configuration.keyBindings = BridgeConfiguration.defaultBindings
+        configuration.setBindings(BridgeConfiguration.defaultBindings, for: profileID)
+        configuration.enabled = false
+        configuration.codexModeEnabled = false
+        configuration.mappingMode = .runtime
+        configuration.mappingPausedByUser = true
+        configuration.agentLightingEnabled = false
+        configuration.hasCompletedOnboarding = false
+        try store.save(configuration)
+        print("BINDINGS CLEAR verified profile=\(profileID) assignments=0")
     case "keymap":
         guard arguments.count == 2 else {
             throw DeveloperCLIError.usage

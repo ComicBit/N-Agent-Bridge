@@ -102,6 +102,12 @@ struct KeyboardSetupWizardView: View {
                                 Text(localizedBridgeAction(binding.action, language))
                                 Spacer()
                                 Text(binding.displayName).monospaced()
+                                if binding.isSupportedInputSource {
+                                    Button(role: .destructive) { store.removeBinding(index) } label: {
+                                        Image(systemName: "xmark.circle")
+                                    }
+                                    .buttonStyle(.borderless)
+                                }
                             }
                             .padding(8)
                             .background(index == selectedBinding ? Color.accentColor.opacity(0.18) : Color.clear,

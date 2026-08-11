@@ -104,8 +104,10 @@ final class CoreTests: XCTestCase {
         if case .rejected = rejection {} else { XCTFail("Name-only recognition must be rejected") }
     }
 
-    func testDefaultBindingsUsePhysicalF1ThroughF12() {
-        XCTAssertEqual(BridgeConfiguration.defaultBindings.map(\.usage), Array(0x3A...0x45))
+    func testDefaultBindingsStartUnassigned() {
+        XCTAssertEqual(BridgeConfiguration.defaultBindings.map(\.usagePage), Array(repeating: 0, count: 12))
+        XCTAssertEqual(BridgeConfiguration.defaultBindings.map(\.usage), Array(repeating: 0, count: 12))
+        XCTAssertTrue(BridgeConfiguration.defaultBindings.allSatisfy { !$0.isSupportedInputSource })
         XCTAssertEqual(BridgeConfiguration.defaultBindings.count, 12)
     }
 
@@ -228,9 +230,9 @@ final class CoreTests: XCTestCase {
         }
         try store.save(legacy)
         let migrated = store.load()
-        XCTAssertEqual(migrated.schemaVersion, 14)
-        XCTAssertEqual(migrated.keyBindings.map(\.usage), Array(0x3A...0x45))
-        XCTAssertEqual(migrated.agentLightingEnabled, true)
+        XCTAssertEqual(migrated.schemaVersion, 15)
+        XCTAssertEqual(migrated.keyBindings, BridgeConfiguration.defaultBindings)
+        XCTAssertEqual(migrated.agentLightingEnabled, false)
         XCTAssertFalse(migrated.overlayEnabled)
         XCTAssertEqual(migrated.resolvedTaskLightPalette, .default)
         XCTAssertEqual(migrated.sidelightRestoredAfterSignalLights, false)
@@ -254,8 +256,8 @@ final class CoreTests: XCTestCase {
         try store.save(corrupted)
 
         let repaired = store.load()
-        XCTAssertEqual(repaired.schemaVersion, 14)
-        XCTAssertEqual(repaired.bindings(for: "nuphy.air75-v3").map(\.usage), Array(0x68...0x73))
+        XCTAssertEqual(repaired.schemaVersion, 15)
+        XCTAssertEqual(repaired.bindings(for: "nuphy.air75-v3"), BridgeConfiguration.defaultBindings)
 
         var custom = BridgeConfiguration.hardwareProfileBindings
         custom[2].usage = 0x14 // A genuine learned Q binding must survive.
@@ -285,11 +287,8 @@ final class CoreTests: XCTestCase {
         try store.save(corrupted)
 
         let repaired = store.load()
-        XCTAssertEqual(repaired.schemaVersion, 14)
-        XCTAssertEqual(
-            repaired.bindings(for: "nuphy.air75-v3").map(\.usage),
-            Array(0x68...0x73)
-        )
+        XCTAssertEqual(repaired.schemaVersion, 15)
+        XCTAssertEqual(repaired.bindings(for: "nuphy.air75-v3"), BridgeConfiguration.defaultBindings)
     }
 
     func testProfileRegistrySelectsExactModelAndGatesHardwareDrivers() {
@@ -350,7 +349,7 @@ final class CoreTests: XCTestCase {
     }
 
     func testCustomBindingsSurviveHardwareProfileInstallAndRestore() {
-        var bindings = BridgeConfiguration.defaultBindings
+        var bindings = BridgeConfiguration.legacyPhysicalFunctionKeyBindings
         bindings[0].usage = 0x1E // number row 1
         bindings[1].usage = 0x05 // B
 

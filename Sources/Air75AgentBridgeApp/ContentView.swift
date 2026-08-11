@@ -349,12 +349,9 @@ struct OverviewView: View {
                 Spacer(minLength: 16)
                 if store.hardwareProfileBusy {
                     ProgressView().tint(.white).controlSize(.large)
-                } else {
+                } else if !store.configuration.enabled {
                     Button(primaryActionTitle) {
-                        if store.configuration.enabled && !store.currentHardwareProfileNeedsInstallation {
-                            store.disable()
-                        }
-                        else { store.oneClickEnable() }
+                        store.oneClickEnable()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
@@ -453,9 +450,7 @@ struct OverviewView: View {
 
     private var primaryActionTitle: String {
         if store.currentHardwareProfileNeedsInstallation { return language.text("配置 \(store.currentModelName)", "Configure \(localizedModelName(store.currentModelName, language))") }
-        if store.configuration.enabled {
-            return store.installedHardwareProfileIsCurrent ? language.text("停止并恢复键盘", "Stop and restore keyboard") : language.text("停止控制", "Stop control")
-        }
+        if store.configuration.enabled { return language.text("已启用", "Enabled") }
         if store.installedHardwareProfileIsCurrent { return language.text("启用控制", "Enable control") }
         return language.text("连接并启用", "Connect and enable")
     }
@@ -476,7 +471,7 @@ struct ControlsView: View {
             HStack(alignment: .top) {
                 PageTitle(title: language.text("按键", "Keys"), subtitle: language.text("把 12 个 Codex 动作分配到你顺手的实体键", "Assign 12 Codex actions to the physical keys you prefer"))
                 Spacer()
-                Button(language.text("恢复默认", "Restore Defaults")) { store.resetBindingsToPhysicalFunctionKeys() }
+                Button(language.text("清除所有分配", "Clear All Assignments")) { store.resetBindingsToPhysicalFunctionKeys() }
                     .buttonStyle(.bordered)
             }
 
@@ -550,7 +545,8 @@ struct ControlsView: View {
                             changeTitle: language.text("更改", "Change"),
                             waitingTitle: language.text("等待…", "Waiting…"),
                             learning: store.learningBindingIndex == index,
-                            onLearn: { store.beginLearningBinding(index) }
+                            onLearn: { store.beginLearningBinding(index) },
+                            onRemove: binding.isSupportedInputSource ? { store.removeBinding(index) } : nil
                         )
                     }
                 }
@@ -576,7 +572,7 @@ struct ControlsView: View {
                     action: store.requestInputMonitoring
                 )
             } else {
-                Text(language.text("Codex 控制开启时，自定义键会成为专用控制键，不再同时输入原字符；停止控制后会恢复原本行为。", "While Codex control is on, custom keys become dedicated controls and no longer type their original characters. Their normal behavior returns when control stops."))
+                Text(language.text("应用运行时，已分配键会成为专用控制键；移除分配或退出应用后立即恢复原本行为。", "While the app runs, assigned keys are dedicated controls. Removing an assignment or quitting the app immediately restores normal behavior."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -773,6 +769,7 @@ private struct KeyActionRow: View {
     let waitingTitle: String
     let learning: Bool
     let onLearn: () -> Void
+    let onRemove: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -793,6 +790,13 @@ private struct KeyActionRow: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(learning)
+            if let onRemove {
+                Button(role: .destructive, action: onRemove) {
+                    Image(systemName: "xmark.circle")
+                }
+                .buttonStyle(.borderless)
+                .help("Remove assignment")
+            }
         }
         .padding(11)
         .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
@@ -1153,7 +1157,6 @@ struct SettingsView: View {
     @EnvironmentObject private var store: BridgeStore
     @Environment(\.interfaceLanguage) private var language
     @Environment(\.interfaceLanguageSelection) private var languageSelection
-    @State private var showRestoreConfirmation = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -1201,17 +1204,9 @@ struct SettingsView: View {
                         title: language.text("Codex 控制", "Codex control"),
                         value: store.configuration.enabled ? language.text("已开启", "On") : language.text("已暂停", "Paused"),
                         good: store.configuration.enabled,
-                        buttonTitle: store.configuration.enabled
-                            ? (store.currentHardwareProfileNeedsInstallation
-                                ? language.text("配置", "Configure")
-                                : (store.installedHardwareProfileIsCurrent ? language.text("停止并恢复", "Stop and Restore") : language.text("停止", "Stop")))
-                            : language.text("启用", "Enable"),
+                        buttonTitle: store.configuration.enabled ? nil : language.text("启用", "Enable"),
                         action: {
-                            if store.configuration.enabled && !store.currentHardwareProfileNeedsInstallation {
-                                store.disable()
-                            } else {
-                                store.oneClickEnable()
-                            }
+                            if !store.configuration.enabled { store.oneClickEnable() }
                         }
                     )
                     Divider()
@@ -1265,15 +1260,7 @@ struct SettingsView: View {
                             Button(language.text("重新显示快速设置", "Show Quick Setup")) { store.showOnboarding = true }
                             Button(language.text("恢复首次灯光", "Restore Initial Lighting")) { store.restoreUserLighting() }
                             Spacer()
-                            Button(language.text("恢复键盘原始设置", "Restore Original Keyboard Settings"), role: .destructive) {
-                                showRestoreConfirmation = true
-                            }
-                            .disabled(store.hardwareProfileBusy)
                         }
-                        Text(language.text("恢复原始设置需要使用 USB-C 连接键盘。", "Restoring original settings requires a USB-C connection."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 10)
                     }
                     .padding(.top, 12)
                 } label: {
@@ -1292,12 +1279,6 @@ struct SettingsView: View {
                 }
             }
             .padding(.top, 4)
-        }
-        .alert(language.text("恢复键盘原始设置？", "Restore original keyboard settings?"), isPresented: $showRestoreConfirmation) {
-            Button(language.text("取消", "Cancel"), role: .cancel) {}
-            Button(language.text("恢复", "Restore"), role: .destructive) { store.restoreOriginalConfiguration() }
-        } message: {
-            Text(language.text("这会关闭 Codex 控制，逐字节恢复首次配置前的键位，并在完整回读成功后提示你可以拔线。", "This turns off Codex control, restores the original keymap byte for byte, and confirms when verification is complete."))
         }
     }
 }

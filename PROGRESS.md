@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-08-11: Runtime-only assignment wizard
+
+- Product setup no longer installs F13-F24 or writes the keyboard keymap.
+- Schema 15 starts all twelve actions unassigned and clears pre-wizard Air75
+  experiment bindings once while preserving later user choices.
+- The graphical wizard assigns actions by physical key, supports removal, and
+  previews five task colors on screen and on verified per-key RGB hardware.
+- Only assigned status keys receive D8 updates. Removing the final assignment
+  or quitting restores the complete pre-Agent palette and lighting mode.
+- Closing the final app window quits the app, so runtime shortcuts stop and
+  original key behavior returns. There is no Stop button.
+
 The entries below preserve the upstream project history. Physical-device
 results recorded in the historical entries are upstream evidence; they are
 not re-run by the current software-only bootstrap unless explicitly stated.

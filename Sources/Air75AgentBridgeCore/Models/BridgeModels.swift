@@ -309,6 +309,7 @@ public struct KeyBinding: Identifiable, Codable, Hashable, Sendable {
     }
 
     public var displayName: String {
+        if usagePage == 0 && usage == 0 { return "Unassigned" }
         if usagePage == 0x07 {
             if (0x04...0x1D).contains(usage) {
                 return String(UnicodeScalar(usage - 0x04 + 0x41)!)
@@ -384,7 +385,7 @@ public struct InstalledHardwareProfileState: Codable, Equatable, Sendable {
 }
 
 public struct BridgeConfiguration: Codable, Sendable {
-    public var schemaVersion = 14
+    public var schemaVersion = 15
     public var hasCompletedOnboarding = false
     public var enabled = false
     public var codexModeEnabled = false
@@ -467,7 +468,15 @@ public struct BridgeConfiguration: Codable, Sendable {
     public static let defaultBindings: [KeyBinding] = {
         let actions: [BridgeAction] = [.agent1, .agent2, .agent3, .agent4, .agent5, .agent6,
                                       .quickAction, .approve, .decline, .newChat, .pushToTalk, .send]
-        return zip(0x3A...0x45, actions).enumerated().map {
+        return actions.map {
+            KeyBinding(usagePage: 0, usage: 0, action: $0, signalLightIndex: nil)
+        }
+    }()
+
+    /// The legacy pre-wizard default. Kept only to recognize and migrate an
+    /// untouched installation; it is never selected for a new configuration.
+    public static let legacyPhysicalFunctionKeyBindings: [KeyBinding] = {
+        zip(0x3A...0x45, defaultBindings.map(\.action)).enumerated().map {
             KeyBinding(usagePage: 0x07, usage: $0.element.0, action: $0.element.1,
                        signalLightIndex: $0.offset + 1)
         }

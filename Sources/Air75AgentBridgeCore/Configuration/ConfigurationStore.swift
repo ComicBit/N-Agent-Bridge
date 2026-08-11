@@ -183,6 +183,32 @@ public final class ConfigurationStore: @unchecked Sendable {
             value.schemaVersion = 14
             requiresSchemaSave = true
         }
+        if value.schemaVersion < 15 {
+            let legacyOriginal = BridgeConfiguration.legacyPhysicalFunctionKeyBindings
+            let legacyInstalled = BridgeConfiguration.hardwareProfileBindings
+            if value.keyBindings == legacyOriginal || value.keyBindings == legacyInstalled {
+                value.keyBindings = BridgeConfiguration.defaultBindings
+            }
+            // Pre-wizard model bindings include experimental assignments from
+            // the keymap-writing builds. They are not informed user choices
+            // under the new runtime-only contract, so schema 15 starts every
+            // supported model with explicit empty slots exactly once.
+            value.modelKeyBindings = value.modelKeyBindings?.mapValues { _ in
+                BridgeConfiguration.defaultBindings
+            }
+            value.hardwareProfileInstalled = false
+            value.hardwareProfileID = nil
+            value.hardwareProfileBackupName = nil
+            value.hardwareProfileStates = [:]
+            value.enabled = false
+            value.codexModeEnabled = false
+            value.mappingMode = .runtime
+            value.mappingPausedByUser = true
+            value.agentLightingEnabled = false
+            value.hasCompletedOnboarding = false
+            value.schemaVersion = 15
+            requiresSchemaSave = true
+        }
         let repairedLegacy = BridgeConfiguration.repairingKnownCorruptedDefaultLayout(
             value.keyBindings,
             hardwareProfileInstalled: value.hardwareProfileInstalled == true

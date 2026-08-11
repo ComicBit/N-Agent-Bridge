@@ -14,8 +14,8 @@ N Agent Bridge currently supports **NuPhy Air75 V3 ANSI** with official firmware
 1. Update the Air75 V3 ANSI to official firmware `1.0.16.6` in NuPhyIO.
 2. Fully close the NuPhyIO browser page so it does not compete for the same HID configuration channel.
 3. Put the keyboard in wired mode and connect it with a USB-C data cable.
-4. In N Agent Bridge, choose **Connect and Enable** or **Configure Air75 V3**.
-5. Wait for the app to back up the complete keymap, install F13–F24, and verify the full readback. Do not unplug the cable during this process.
+4. Open the graphical setup wizard.
+5. Select each action and click the physical key you want. Unassigned actions remain empty; the keyboard keymap is never rewritten.
 6. Quit and reopen Codex Desktop once after the first setup.
 
 ## Language

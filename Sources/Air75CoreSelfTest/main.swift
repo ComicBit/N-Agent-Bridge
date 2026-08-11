@@ -133,7 +133,8 @@ let impostor = DeviceFingerprintMatcher.classify(
 if case .rejected = impostor { check(true, "rejects name-only impostor") }
 else { check(false, "rejects name-only impostor") }
 
-check(BridgeConfiguration.defaultBindings.map(\.usage) == Array(0x3A...0x45), "physical F1-F12 default usages")
+check(BridgeConfiguration.defaultBindings.allSatisfy { !$0.isSupportedInputSource },
+      "new actions start without physical key assignments")
 check(Set(BridgeConfiguration.defaultBindings.map(\.action)).count == 12, "unique default actions")
 check(Air75V3LightingController.preferredConnection(
     forProductIDs: [Air75V3LightingController.dongleProductID]
@@ -145,7 +146,7 @@ check(Air75V3LightingController.preferredConnection(forProductIDs: [0xFFFF]) == 
       "unknown receiver cannot gain lighting write capability")
 check(Air75V3LightingController().writableLightingHandles == [0],
       "Air75 V3 writes only the active macOS lighting profile")
-var customBindings = BridgeConfiguration.defaultBindings
+var customBindings = BridgeConfiguration.legacyPhysicalFunctionKeyBindings
 customBindings[0].usage = 0x1E
 let installedBindings = BridgeConfiguration.bindingsForInstalledHardwareProfile(customBindings)
 check(installedBindings[0].usage == 0x1E && installedBindings[1].usage == 0x69,
@@ -564,11 +565,11 @@ do {
     }
     try store.save(legacy)
     let migrated = store.load()
-    check(migrated.schemaVersion == 14
+    check(migrated.schemaVersion == 15
             && migrated.sidelightRestoredAfterSignalLights == false
             && migrated.resolvedAgentSourceMode == .recent
-            && migrated.keyBindings.map(\.usage) == Array(0x3A...0x45),
-          "migrates v1 F13-F24 configuration")
+            && migrated.keyBindings == BridgeConfiguration.defaultBindings,
+          "migrates v1 F13-F24 configuration to unassigned wizard slots")
     var corrupted = BridgeConfiguration()
     corrupted.schemaVersion = 6
     corrupted.hardwareProfileInstalled = true
@@ -576,11 +577,10 @@ do {
     corrupted.keyBindings[0].usage = KeyBinding.hidArrayUsageSentinel
     try store.save(corrupted)
     let repaired = store.load()
-    check(repaired.schemaVersion == 14
+    check(repaired.schemaVersion == 15
             && repaired.sidelightRestoredAfterSignalLights == false
-            && repaired.keyBindings[0].usage == 0x68
-            && repaired.keyBindings.dropFirst().map(\.usage) == Array(0x69...0x73),
-          "repairs persisted HID array sentinel without changing other bindings")
+            && repaired.keyBindings == BridgeConfiguration.defaultBindings,
+          "clears pre-wizard persisted HID bindings")
     var mixedAir = BridgeConfiguration()
     mixedAir.schemaVersion = 12
     mixedAir.setHardwareProfileState(
@@ -593,9 +593,9 @@ do {
     mixedAir.setBindings(mixedAirBindings, for: "nuphy.air75-v3")
     try store.save(mixedAir)
     let repairedAir = store.load()
-    check(repairedAir.schemaVersion == 14
-            && repairedAir.bindings(for: "nuphy.air75-v3").map(\.usage) == Array(0x68...0x73),
-          "repairs exact Air75 F13/F15/Tab/F16-F24 first-run corruption")
+    check(repairedAir.schemaVersion == 15
+            && repairedAir.bindings(for: "nuphy.air75-v3") == BridgeConfiguration.defaultBindings,
+          "clears exact Air75 first-run corruption")
     var schema13Mixed = BridgeConfiguration()
     schema13Mixed.schemaVersion = 13
     var schema13MixedBindings = BridgeConfiguration.hardwareProfileBindings
@@ -608,14 +608,14 @@ do {
     schema13Mixed.setBindings(schema13MixedBindings, for: "nuphy.air75-v3")
     try store.save(schema13Mixed)
     let schema14Repaired = store.load()
-    check(schema14Repaired.schemaVersion == 14
-            && schema14Repaired.bindings(for: "nuphy.air75-v3").map(\.usage)
-                == Array(0x68...0x73),
-          "schema 14 repairs saved mixed defaults for Air75 V3")
+    check(schema14Repaired.schemaVersion == 15
+            && schema14Repaired.bindings(for: "nuphy.air75-v3")
+                == BridgeConfiguration.defaultBindings,
+          "schema 15 clears saved mixed defaults for Air75 V3")
     let freshConfiguration = BridgeConfiguration()
-    check(freshConfiguration.bindings(for: "nuphy.air75-v3").map(\.usage)
-            == Array(0x3A...0x45),
-          "fresh configuration starts Air75 V3 on physical F1-F12 before setup")
+    check(freshConfiguration.bindings(for: "nuphy.air75-v3")
+            == BridgeConfiguration.defaultBindings,
+          "fresh configuration starts Air75 V3 unassigned")
     var genuineCustomAir = BridgeConfiguration.hardwareProfileBindings
     genuineCustomAir[2].usage = 0x14
     check(BridgeConfiguration.repairingKnownCorruptedDefaultLayout(

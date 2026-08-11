@@ -34,11 +34,11 @@ not implemented yet. See [NEXT_STEPS.md](NEXT_STEPS.md).
 3. Development builds are not Apple-notarized. If macOS blocks the first launch, choose **System Settings → Privacy & Security → Open Anyway**. Do not disable Gatekeeper.
 4. Grant **Input Monitoring** and **Accessibility** to N Agent Bridge, then quit and reopen it.
 5. Update the keyboard to official firmware `1.0.16.6`, close NuPhyIO, switch to wired mode, and connect a USB-C data cable.
-6. Choose **Connect and Enable**. The app backs up the complete 1,568-byte keymap, installs F13-F24, verifies the full readback, and initializes verified lighting.
+6. Complete the graphical wizard: choose an action, then click its physical key. The app uses runtime-only interception and never rewrites the keyboard keymap.
 
-The app stores configuration and hardware backups locally at
-`~/Library/Application Support/Air75AgentBridge/Backups`. Do not remove that
-directory while the dedicated keymap is installed.
+The app stores configuration and verified lighting backups locally at
+`~/Library/Application Support/Air75AgentBridge/Backups`. They allow assignment
+removal and Quit to restore the user's original colors and lighting mode.
 
 ## Build locally
 
@@ -74,7 +74,7 @@ side-light controls and are also verified on USB-C and U1.
 - [Architecture](docs/ARCHITECTURE.md) — HID, Air75 hardware, lighting/input, CLI, and application integration boundaries
 - [Air75 V3 protocol](docs/AIR75_V3_PROTOCOL.md) — frame layouts, commands, session behavior, firmware assumptions, and confidence labels
 - [Air75 V3 LED map](docs/AIR75_V3_LED_MAP.md) — ANSI physical-key to D2 read index map
-- [Keymap behavior](docs/KEYMAP.md) — F13-F24 installation and knob events
+- [Key assignment behavior](docs/KEYMAP.md) — runtime-only interception and restoration
 - [English user guide](docs/USER-GUIDE.en.md)
 - [Acceptance test](docs/ACCEPTANCE-TEST.md)
 
