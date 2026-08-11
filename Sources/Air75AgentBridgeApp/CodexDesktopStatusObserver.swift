@@ -118,8 +118,8 @@ final class CodexDesktopStatusObserver: @unchecked Sendable {
                          projectOrder: $0.projectOrder)
         }
         // Publish a low-frequency heartbeat even when the logical state does
-        // not change. Some keyboard firmware clears transient D8 colors after
-        // sleep; BridgeStore uses this heartbeat to reassert live statuses.
+        // not change. If per-key RGB writing is verified later, BridgeStore can
+        // use this heartbeat to reassert live statuses after sleep.
         lock.lock()
         if keys == lastPublishedKeys,
            let lastPublishedAt,
@@ -217,7 +217,8 @@ final class CodexDesktopStatusObserver: @unchecked Sendable {
             return snapshots
         }
 
-        // Codex 升级导致索引不可用时退回旧的目录扫描，仍提供单任务状态。
+        // If a Codex upgrade makes the index unavailable, fall back to the
+        // legacy directory scan so a single-task state is still available.
         if let rollout = mostRecentUserRollout(), let data = readTail(of: rollout, maximumBytes: 1_500_000) {
             return [CodexRolloutStatusParser.parse(data: data, now: now)]
         }
@@ -294,7 +295,8 @@ final class CodexDesktopStatusObserver: @unchecked Sendable {
         } else {
             raw = CodexTaskLightSnapshot(threadID: fallbackThreadID, state: .idle, eventDate: nil)
         }
-        // 大文件的 session_meta 可能不在尾部窗口内；线程身份以索引为准。
+        // A large file may place session_meta outside the tail window; use the
+        // index as the authoritative thread identity.
         if raw.threadID == nil { raw.threadID = fallbackThreadID }
         rolloutCache[path] = (modificationDate, raw)
         return raw

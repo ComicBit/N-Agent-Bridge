@@ -8,9 +8,9 @@ public enum KeyboardSleepConfigurationError: LocalizedError, Equatable {
         switch self {
         case .invalidPayload(let payload):
             let bytes = payload.map { String(format: "%02X", $0) }.joined(separator: " ")
-            return "键盘休眠配置无效：\(bytes)"
+            return "Keyboard sleep configuration is invalid: \(bytes)"
         case .invalidIdleMinutes(let minutes):
-            return "键盘休眠时间必须在 1–127 分钟之间（当前为 \(minutes)）"
+            return "Keyboard idle sleep time must be between 1 and 127 minutes (got \(minutes))."
         }
     }
 }

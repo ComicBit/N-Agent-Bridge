@@ -1,30 +1,45 @@
 # Codex Micro Research
 
-核验日期：2026-07-19。主来源：[OpenAI Codex Micro 官方页](https://openai.com/supply/co-lab/work-louder/)、[Codex 开发文档](https://developers.openai.com/codex/)。
+Verification date: 2026-07-19. Primary sources were the
+[OpenAI Codex Micro page](https://openai.com/supply/co-lab/work-louder/) and
+[Codex developer documentation](https://developers.openai.com/codex/).
 
-## 官方明确说明
+## Explicitly stated by the official material
 
-- Codex Micro 支持 Bluetooth / USB-C、Mac / Windows、RGB。
-- 每个 Agent Key 显示 Codex 实时状态；官方文字列出 thinking、running、waiting、done。
-- joystick 启动 Skills/常见工作流，官方示例是 PR review、debug、refactor。
-- Command keys 的明确示例为 accept、reject、push-to-talk、new chat，以及未逐项列出的“more”。
-- dial 调整 reasoning level。
-- 硬件规格为 13 个机械键、1 个触摸传感器、1 个旋转编码器、1 个平面摇杆。
+- Codex Micro supports Bluetooth and USB-C, Mac and Windows, and RGB.
+- Each Agent key shows live Codex state; the official text lists thinking,
+  running, waiting, and done.
+- The joystick starts skills/common workflows; examples include PR review,
+  debug, and refactor.
+- Explicit command-key examples are accept, reject, push-to-talk, and new
+  chat, plus an unspecified “more” group.
+- The dial changes reasoning level.
+- Hardware specifications list 13 mechanical keys, one touch sensor, one
+  rotary encoder, and one planar joystick.
 
-## 官方没有公开
+## Not published by the official material
 
-- 逐个 Agent/Command 键的完整默认映射与确切数量分组；
-- 触摸传感器的默认动作；
-- RGB 色值、动画时序和传输协议；
-- 固件 HID Report、认证协议或 Work Louder Input 私有接口。
+- the complete default mapping and exact grouping/count for each Agent and
+  command key;
+- the touch-sensor default action;
+- RGB values, animation timing, and transport protocol;
+- firmware HID reports, authentication protocol, or private Work Louder Input
+  interfaces.
 
-## 本项目采用的等价映射（不是官方默认）
+## Equivalent mapping used by this project, not an official default
 
-- 6 个 Agent Slot，F13–F18；
-- Quick Action、Approve、Decline、New Chat、Push to Talk、Send，F19–F24；
-- 方向键等价摇杆；旋钮默认 Context Aware；
-- 状态色遵循产品需求中的建议色表，尚未称为官方色值。
+- six Agent slots on F13-F18;
+- Quick Action, Approve, Decline, New Chat, Push to Talk, and Send on F19-F24;
+- arrow keys as a joystick equivalent, with the knob defaulting to
+  context-aware reasoning control;
+- status colors based on the product requirements’ suggested palette, not
+  presented as official color values.
 
-## Codex 集成验证
+## Codex integration evidence
 
-本机 Codex CLI 0.144.6 已登录 ChatGPT。稳定 CLI 提供 `codex exec --json`；当前安装版本还提供标记为 experimental 的 app-server V2，schema 明确含 `thread/start`、`turn/start`、`turn/interrupt`、流式通知以及 command/file/permissions approval 回调。本项目用 app-server 满足人工批准，保留协议版本风险提示。
+The upstream workstation record had Codex CLI 0.144.6 logged into ChatGPT.
+The stable CLI provided `codex exec --json`; that installation also exposed
+experimental app-server V2 with `thread/start`, `turn/start`,
+`turn/interrupt`, streaming notifications, and command/file/permissions
+approval callbacks. This project uses app-server for explicit human approval
+and retains the protocol-version risk.

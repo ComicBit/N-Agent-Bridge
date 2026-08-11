@@ -145,6 +145,15 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(SignalLightLayout.staleManagedIndices(layoutID: "nuphy.air75-v3.ansi-d8"), [30])
     }
 
+    func testDeveloperKeyNamesResolveOnlyInsideVerifiedANSIMap() {
+        let layoutID = "nuphy.air75-v3.ansi-d8"
+        XCTAssertEqual(SignalLightLayout.key(layoutID: layoutID, named: "F1")?.index, 1)
+        XCTAssertEqual(SignalLightLayout.key(layoutID: layoutID, named: "F13")?.index, 1)
+        XCTAssertEqual(SignalLightLayout.key(layoutID: layoutID, named: "printscreen")?.index, 13)
+        XCTAssertNil(SignalLightLayout.key(layoutID: layoutID, named: "84"))
+        XCTAssertNil(SignalLightLayout.key(layoutID: "unknown", named: "F1"))
+    }
+
     func testLegacyF13ConfigurationMigratesToPhysicalKeys() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

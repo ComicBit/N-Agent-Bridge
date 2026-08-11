@@ -3,7 +3,7 @@ import Foundation
 public final class UnsupportedConfigurationProvider: KeyboardConfigurationProvider, @unchecked Sendable {
     public enum ConfigurationError: LocalizedError {
         case protocolUnavailable
-        public var errorDescription: String? { "NuPhyIO 板载 Profile 协议尚未公开；没有修改键盘" }
+        public var errorDescription: String? { "The NuPhyIO onboard-profile protocol is not public; the keyboard was not modified." }
     }
 
     public init() {}

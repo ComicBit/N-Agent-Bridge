@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleDisplayName</key><string>N Agent Bridge</string>
     <key>CFBundleExecutable</key><string>Air75AgentBridge</string>
     <key>CFBundleIconFile</key><string>AppIcon.icns</string>
@@ -14,7 +14,7 @@
     <key>CFBundleVersion</key><string>1</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
-    <key>NSBluetoothAlwaysUsageDescription</key><string>用于识别并关联您确认的受支持 NuPhy 蓝牙键盘。</string>
+    <key>NSBluetoothAlwaysUsageDescription</key><string>Identify and associate a supported NuPhy Bluetooth keyboard that you confirm.</string>
     <key>NSHumanReadableCopyright</key><string>Independent third-party project. Not affiliated with OpenAI, Work Louder, or NuPhy.</string>
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>NSSupportsAutomaticGraphicsSwitching</key><true/>

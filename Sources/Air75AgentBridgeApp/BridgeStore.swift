@@ -302,10 +302,14 @@ final class BridgeStore: ObservableObject {
     var currentCapabilitySummary: String {
         guard let profile = profile(for: currentDevice) else { return "等待识别型号" }
         if KeyboardDriverRegistry.keymapDriver(for: profile) != nil,
-           KeyboardDriverRegistry.lightingDriver(for: profile) != nil {
-            return KeyboardDriverRegistry.lightingDriver(for: profile)?.supportsFullLightingControl == true
-                ? "完整硬件控制"
-                : "按键、\(reasoningControlName)与 Agent 状态灯已验证"
+           let lighting = KeyboardDriverRegistry.lightingDriver(for: profile) {
+            if lighting.supportsFullLightingControl && lighting.supportsPerKeyColorWrite {
+                return "完整硬件控制"
+            }
+            if lighting.supportsFullLightingControl {
+                return "整键背光与侧灯已验证 · 逐键 RGB 待实机验证"
+            }
+            return "按键、\(reasoningControlName)与逐键 RGB 待实机验证"
         }
         if KeyboardDriverRegistry.keymapDriver(for: profile) != nil {
             return installedHardwareProfileIsCurrent
@@ -371,14 +375,15 @@ final class BridgeStore: ObservableObject {
     }
 
     var signalLightingSupported: Bool {
-        currentSignalLightLayoutID != nil && currentLightingDriver != nil
+        currentSignalLightLayoutID != nil
+            && currentLightingDriver?.supportsPerKeyColorWrite == true
     }
 
     func oneClickEnable() {
         guard !hardwareProfileBusy else { return }
         // D5/D6 and the keymap controller share the same vendor HID channel.
         // If a connection refresh was already in flight, wait for it instead
-        // of allowing first-run keymap and indicator writes to race it.
+        // of allowing first-run keymap and lighting discovery to race it.
         if lightingBusy {
             hardwareProfileBusy = true
             hardwareProfileMessage = "正在等待灯光通道完成检测…"
@@ -456,17 +461,12 @@ final class BridgeStore: ObservableObject {
         let targetProfileID = controller.profileID
         let currentProfileState = currentConfiguration.hardwareProfileState(for: targetProfileID)
         let targetModelName = usbDevice.modelName ?? usbDevice.productName
-        let defaultIndicatorProfiles: Set<String> = ["nuphy.air75-v3"]
         let lightingDriver = KeyboardDriverRegistry.lightingDriver(for: targetProfile)
-        let shouldInitializeIndicatorMode = defaultIndicatorProfiles.contains(targetProfileID)
-            && !currentConfiguration.hasInitializedIndicatorMode(for: targetProfileID)
-            && lightingDriver?.supportsFullLightingControl == true
-            && lightingDriver?.supportedBacklightModes.contains(.signalIndicator) == true
         Task {
             var shouldRefreshLightingAfterSetup = false
             do {
                 let keybindingInstaller = codexKeybindingInstaller
-                let result = try await Task.detached(priority: .userInitiated) { () -> (KeyboardKeymapInstallResult, URL, URL, CodexKeybindingInstallResult, [KeyboardLightingState]?, String?) in
+                let result = try await Task.detached(priority: .userInitiated) { () -> (KeyboardKeymapInstallResult, URL, URL, CodexKeybindingInstallResult) in
                     let original = try controller.readKeymap()
                     // Validate before creating a backup. Firmware updaters can
                     // leave a NuPhyIO encryption session active, in which case
@@ -500,23 +500,7 @@ final class BridgeStore: ObservableObject {
                     )
                     let installed = try controller.installBridgeProfile(expectedOriginal: original)
                     let keybindings = try keybindingInstaller.install()
-                    var indicatorStates: [KeyboardLightingState]?
-                    var indicatorError: String?
-                    if shouldInitializeIndicatorMode, let lightingDriver {
-                        do {
-                            indicatorStates = try lightingDriver.setBacklight(
-                                mode: .signalIndicator,
-                                brightness: nil,
-                                color: nil
-                            )
-                        } catch {
-                            // The board profile is already safely installed.
-                            // Report the independent lighting failure without
-                            // pretending that the whole setup rolled back.
-                            indicatorError = error.localizedDescription
-                        }
-                    }
-                    return (installed, keymapBackup, runtimeBackup, keybindings, indicatorStates, indicatorError)
+                    return (installed, keymapBackup, runtimeBackup, keybindings)
                 }.value
                 lastBackupURL = result.1
                 configuration.mappingMode = .hardwareProfile
@@ -540,26 +524,17 @@ final class BridgeStore: ObservableObject {
                 )
                 hardwareProfileVerificationFailures.remove(targetProfileID)
                 configuration.setBindings(installedBindings, for: targetProfileID)
-                if let indicatorStates = result.4 {
-                    configuration.markIndicatorModeInitialized(for: targetProfileID)
-                    lightingStates = indicatorStates
-                    lightingConnection = lightingDriver?.detectedConnection()
-                    lightingAvailable = true
-                } else {
-                    shouldRefreshLightingAfterSetup = lightingDriver?.detectedConnection() != nil
-                }
+                // Installing the keymap must not silently change the user's
+                // D5/D6 backlight or side-light mode. Per-key RGB remains a
+                // separate, read-only capability until its write transaction
+                // is independently verified.
+                shouldRefreshLightingAfterSetup = lightingDriver?.detectedConnection() != nil
                 persistConfiguration()
                 codexDesktopKeybindingsInstalled = true
                 codexRestartRequired = result.3.changed || codexNeedsRestartForKeybindings()
-                if let indicatorError = result.5 {
-                    hardwareProfileMessage = "F13–F24 已回读确认；指示灯模式设置失败：\(indicatorError)"
-                } else if result.4 != nil {
-                    hardwareProfileMessage = "F13–F24 已回读确认，背光已进入指示灯模式"
-                } else {
-                    hardwareProfileMessage = result.0.changedChunkAddresses.isEmpty
-                        ? "键盘专用事件与 Codex 命令中继均已验证"
-                        : "键盘专用事件已写入，Codex 命令中继已安装"
-                }
+                hardwareProfileMessage = result.0.changedChunkAddresses.isEmpty
+                    ? "键盘专用事件与 Codex 命令中继均已验证"
+                    : "键盘专用事件已写入，Codex 命令中继已安装"
                 lastAgentSignalLights = nil
                 failedAgentSignalLights = nil
                 if lightingAvailable { syncAgentLighting() }
@@ -1159,9 +1134,9 @@ final class BridgeStore: ObservableObject {
         }
     }
 
-    /// Firmware D8 colors are transient on some sleep/wake paths. Reassert the
-    /// current six logical states after a likely keyboard or Mac wake instead
-    /// of trusting the last successful write cache forever.
+    /// If per-key RGB writing is verified in a future firmware capture,
+    /// reassert the current six logical states after a likely keyboard or Mac
+    /// wake instead of trusting the last successful write cache forever.
     private func scheduleAgentLightingResyncAfterWake(force: Bool = false) {
         guard configuration.agentLightingEnabled == true else { return }
         if force || lastAgentSignalWriteAt.map({ Date().timeIntervalSince($0) > 15 }) != false {
@@ -1252,6 +1227,10 @@ final class BridgeStore: ObservableObject {
     }
 
     func setAgentLightingEnabled(_ enabled: Bool) {
+        guard !enabled || signalLightingSupported else {
+            lightingMessage = "This keyboard profile does not support verified per-key Agent lighting."
+            return
+        }
         configuration.agentLightingEnabled = enabled
         lastAgentSignalLights = nil
         failedAgentSignalLights = nil
@@ -1290,6 +1269,10 @@ final class BridgeStore: ObservableObject {
     }
 
     private func restoreUserSignalLights() {
+        guard signalLightingSupported else {
+            lightingMessage = "Air75 V3 per-key RGB writing is not verified; no key-color restore was attempted."
+            return
+        }
         let saved = userSignalLightsByIndex.values.sorted { $0.index < $1.index }
         guard !saved.isEmpty else {
             lightingMessage = "Codex 状态灯模式已关闭；键盘灯光已恢复"
@@ -1427,7 +1410,7 @@ final class BridgeStore: ObservableObject {
 
     private func syncAgentLighting() {
         guard configuration.agentLightingEnabled == true, lightingAvailable,
-              !lightingBusy, !hardwareProfileBusy else { return }
+              signalLightingSupported, !lightingBusy, !hardwareProfileBusy else { return }
         if configuration.sidelightRestoredAfterSignalLights != true {
             restoreLegacyAgentSidelight()
             return
@@ -1499,9 +1482,9 @@ final class BridgeStore: ObservableObject {
             desiredByIndex[index] = Air75SignalLight(index: index, color: color)
         }
         managedSignalLightIndices.formUnion(activeIndices)
-        // 0.10.0 accidentally wrote task 1 to index 0 (Esc). D8 colors
-        // persist until explicitly replaced, so every sync clears that stale
-        // indicator while writing the six real F-row indexes.
+        // 0.10.0 accidentally wrote task 1 to index 0 (Esc). If the per-key
+        // writer is re-enabled after verification, clear that stale index
+        // while writing the six real F-row indexes.
         let escapeOff = Air75SignalLight(
             index: Air75V3LightingController.escapeSignalLightIndex,
             color: Air75RGBColor(red: 0, green: 0, blue: 0)
@@ -1512,7 +1495,7 @@ final class BridgeStore: ObservableObject {
 
     private func syncAgentSignalLights() {
         guard configuration.agentLightingEnabled == true, lightingAvailable,
-              !lightingBusy, !hardwareProfileBusy else { return }
+              signalLightingSupported, !lightingBusy, !hardwareProfileBusy else { return }
         let desired = desiredAgentSignalLights()
         if failedAgentSignalLights != nil, failedAgentSignalLights != desired {
             agentSignalRetryCount = 0

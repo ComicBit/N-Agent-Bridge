@@ -1,5 +1,19 @@
 # Bluetooth
 
-USB 与 Bluetooth 身份按以下证据关联：精确产品别名、Usage Page/Usage、厂商/VID、首次 USB 指纹、用户一次确认、永久本地别名。蓝牙缺少序列号时不以名称单独认定。
+USB and Bluetooth identities are associated only through combined evidence:
+an exact product alias, usage page/usage, vendor and VID, an initial USB
+fingerprint, one user confirmation, and a persistent local alias. A Bluetooth
+device without a serial number is never identified by its name alone.
 
-当前系统已配对 `Air75 V3-2`（system_profiler Vendor ID `0x07D7`，检查时电量 100%），但处于 Not Connected。强制验收尚需用户拔 USB、切换硬件模式并连接。验收时记录蓝牙 HID VID/PID、接口、旋钮、F1–F12/学习后的 Usage、休眠恢复与重复设备行为。板载灯效会由键盘固件继续运行，但实时修改灯光需要切回 USB。
+The source system had paired `Air75 V3-2` (system_profiler vendor ID
+`0x07D7`, 100% battery at inspection time) but it was not connected. Complete
+acceptance still requires unplugging USB, selecting the appropriate hardware
+mode, and connecting Bluetooth. Record the Bluetooth HID VID/PID, interfaces,
+knob events, native and learned F1-F12 usages, sleep/wake behavior, and
+duplicate-device behavior. The keyboard’s onboard effects continue to run in
+firmware, but live lighting changes must return to USB-C or the verified U1
+route.
+
+Live Bluetooth lighting and keymap management are **REQUIRES HARDWARE
+VERIFICATION**; the current implementation intentionally exposes Bluetooth
+only as an input path.

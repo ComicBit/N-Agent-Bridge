@@ -48,6 +48,9 @@ cleanup() { /bin/rm -rf "$staging_dir"; }
 trap cleanup EXIT
 cp -R "$app_dir" "$staging_dir/"
 ln -s /Applications "$staging_dir/Applications"
+if [[ -f "$project_dir/Distribution/INSTALL.md" ]]; then
+  cp "$project_dir/Distribution/INSTALL.md" "$staging_dir/INSTALL.md"
+fi
 if [[ -f "$project_dir/Distribution/安装说明.txt" ]]; then
   cp "$project_dir/Distribution/安装说明.txt" "$staging_dir/安装说明.txt"
 fi

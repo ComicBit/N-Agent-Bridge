@@ -18,7 +18,7 @@ public enum KeyboardLightingConnection: String, Equatable, Sendable {
     public var displayName: String {
         switch self {
         case .usbCable: return "USB-C"
-        case .twoPointFourGHzReceiver: return "2.4G 接收器"
+        case .twoPointFourGHzReceiver: return "2.4G receiver"
         }
     }
 
@@ -39,8 +39,11 @@ public protocol KeyboardKeymapDriver: AnyObject, Sendable {
 public protocol KeyboardLightingDriver: AnyObject, Sendable {
     var profileID: String { get }
     /// True only after D6 zone writes and readback have been validated for
-    /// this exact model. D8-only models can still expose Agent status lights.
+    /// this exact model.
     var supportsFullLightingControl: Bool { get }
+    /// True only after a real per-key RGB write command changes a physical key
+    /// and survives exact D2 readback on this model and firmware.
+    var supportsPerKeyColorWrite: Bool { get }
     /// Exact backlight modes accepted by this model's verified D6 path.
     var supportedBacklightModes: [KeyboardBacklightMode] { get }
     /// Exact sidelight modes exposed by the official configurator for this

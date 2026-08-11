@@ -7,6 +7,7 @@ let package = Package(
     products: [
         .executable(name: "Air75AgentBridge", targets: ["Air75AgentBridgeApp"]),
         .executable(name: "Air75HIDInspector", targets: ["Air75HIDInspector"]),
+        .executable(name: "air75", targets: ["Air75DeveloperCLI"]),
         .executable(name: "Air75ProtocolProbe", targets: ["Air75ProtocolProbe"]),
         .executable(name: "CodexAXProbe", targets: ["CodexAXProbe"]),
         .executable(name: "Air75CoreSelfTest", targets: ["Air75CoreSelfTest"]),
@@ -32,6 +33,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "Air75HIDInspector",
+            dependencies: ["Air75AgentBridgeCore"]
+        ),
+        .executableTarget(
+            name: "Air75DeveloperCLI",
             dependencies: ["Air75AgentBridgeCore"]
         ),
         .executableTarget(

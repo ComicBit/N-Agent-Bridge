@@ -7,8 +7,8 @@ public final class ConfigurationStore: @unchecked Sendable {
 
         public var errorDescription: String? {
             switch self {
-            case .encodingFailed: return "无法编码配置"
-            case .backupUnreadable: return "备份写入后无法重新读取"
+            case .encodingFailed: return "Could not encode the configuration."
+            case .backupUnreadable: return "The backup could not be read after it was written."
             }
         }
     }

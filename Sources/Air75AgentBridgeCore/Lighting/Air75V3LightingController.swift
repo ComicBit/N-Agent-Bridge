@@ -23,9 +23,10 @@ public struct Air75RGBColor: Codable, Equatable, Sendable {
     public var hex: String { String(format: "#%02X%02X%02X", red, green, blue) }
 }
 
-/// One logical status LED exposed by the Air75 V3 firmware's 0xD8 command.
-/// Firmware indexes 1...6 are the six F-row task indicators (F1...F6).
-/// Index 0 is the Escape key on the Air75 V3 ANSI layout.
+/// One per-key RGB record returned by the Air75 V3 firmware's 0xD2 command.
+/// Firmware indexes 1...6 currently correspond to the physical F1...F6
+/// positions in the ANSI read map; index 0 is Escape. The per-key write path
+/// is intentionally not implied by this read model.
 public struct Air75SignalLight: Codable, Equatable, Sendable {
     public var index: UInt8
     public var color: Air75RGBColor
@@ -153,6 +154,7 @@ public enum Air75LightingError: LocalizedError {
     case sleepVerificationFailed(expected: [UInt8], actual: [UInt8])
     case invalidSignalLights
     case signalLightReadbackMismatch
+    case signalIndicatorModeRequired
     case unsupportedBacklightMode(model: String, mode: Air75BacklightMode)
     case unsupportedSidelightMode(model: String, mode: Air75SidelightMode)
     case stateWritesNotVerified(String)
@@ -160,34 +162,36 @@ public enum Air75LightingError: LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .deviceNotFound: return "未找到 Air75 V3 的配置接口；请使用 USB-C 数据线连接，或插入 2.4G 接收器"
-        case .managerOpen(let code): return "无法打开 Air75 V3 灯光接口（0x\(String(UInt32(bitPattern: code), radix: 16))）"
-        case .writeFailed(let code): return "Air75 V3 HID 指令发送失败（0x\(String(UInt32(bitPattern: code), radix: 16))）"
-        case .timeout(let command): return "等待 Air75 V3 响应超时（命令 0x\(String(command, radix: 16))）"
-        case .invalidResponse: return "Air75 V3 返回了无效协议帧"
-        case .invalidChecksum: return "Air75 V3 返回帧校验失败"
-        case .invalidState: return "Air75 V3 灯光状态无效"
+        case .deviceNotFound: return "No Air75 V3 management interface was found; connect a USB-C data cable or insert the 2.4G receiver."
+        case .managerOpen(let code): return "Could not open the Air75 V3 lighting interface (0x\(String(UInt32(bitPattern: code), radix: 16)))."
+        case .writeFailed(let code): return "Air75 V3 HID command failed to send (0x\(String(UInt32(bitPattern: code), radix: 16)))."
+        case .timeout(let command): return "Timed out waiting for the Air75 V3 response (command 0x\(String(command, radix: 16)))."
+        case .invalidResponse: return "Air75 V3 returned an invalid protocol frame."
+        case .invalidChecksum: return "Air75 V3 response checksum validation failed."
+        case .invalidState: return "Air75 V3 lighting state is invalid."
         case .invalidStatePayload(let raw):
             let bytes = raw.map { String(format: "%02X", $0) }.joined(separator: " ")
-            return "Air75 V3 灯光状态无效：\(bytes)"
+            return "Air75 V3 lighting state is invalid: \(bytes)"
         case .sessionKeyConflict(let key):
-            return "键盘正处于另一个配置器的加密会话（会话密钥 0x\(String(format: "%02X", key))）。请关闭 NuPhyIO 等配置页面，然后重新插拔键盘"
+            return "The keyboard is in an encrypted session owned by another configurator (session key 0x\(String(format: "%02X", key))). Close NuPhyIO and other configuration pages, then reconnect the keyboard."
         case .sleepVerificationFailed(let expected, let actual):
             let expectedBytes = expected.map { String(format: "%02X", $0) }.joined(separator: " ")
             let actualBytes = actual.map { String(format: "%02X", $0) }.joined(separator: " ")
-            return "键盘休眠时间回读不一致（期望 \(expectedBytes)，实际 \(actualBytes)）；已尝试恢复修改前设置"
+            return "Keyboard sleep configuration readback differs (expected \(expectedBytes), got \(actualBytes)); recovery of the pre-write settings was attempted."
         case .invalidSignalLights:
-            return "F1–F6 指示灯数据无效"
+            return "F1-F6 per-key RGB data is invalid."
         case .signalLightReadbackMismatch:
-            return "Agent 指示灯写入后的 D2 回读与目标颜色不一致；已尝试恢复修改前颜色"
+            return "D2 readback after a per-key RGB write does not match the target color; recovery of the pre-write color was attempted."
+        case .signalIndicatorModeRequired:
+            return "Per-key RGB requires Signal Indicator mode (0x15). Connect USB-C once to prepare the keyboard before using USB or 2.4G Agent lighting."
         case .unsupportedBacklightMode(let model, let mode):
-            return "\(model) 不支持背光效果“\(mode.displayName)”"
+            return "\(model) does not support the backlight effect \"\(mode.displayName)\"."
         case .unsupportedSidelightMode(let model, let mode):
-            return "\(model) 不支持侧灯效果“\(mode.displayName)”"
+            return "\(model) does not support the side-light effect \"\(mode.displayName)\"."
         case .stateWritesNotVerified(let model):
-            return "\(model) 的普通背光与侧灯写入尚未通过完整回读验证；当前仅启用 Agent 单键状态灯"
+            return "\(model) backlight and side-light writes have not passed complete readback verification; only read-only per-key RGB inspection is enabled."
         case .stateReadbackMismatch(let model, _, _):
-            return "\(model) 灯光写入后的 D5 回读与目标状态不一致；已尝试恢复修改前设置"
+            return "D5 readback after the \(model) lighting write does not match the target state; recovery of the pre-write settings was attempted."
         }
     }
 }
@@ -217,6 +221,8 @@ public final class Air75V3LightingController: @unchecked Sendable {
     private let deviceDisplayName: String
     public let profileID: String
     public let supportsFullLightingControl: Bool
+    /// D8 writes are verified through exact D2 readback on USB-C and U1 2.4G.
+    public let supportsPerKeyColorWrite: Bool
     public let supportedBacklightModes: [Air75BacklightMode]
     public let supportedSidelightModes: [Air75SidelightMode]
     /// D5 exposes separate macOS and Windows lighting profiles. The macOS app
@@ -232,6 +238,7 @@ public final class Air75V3LightingController: @unchecked Sendable {
         self.deviceDisplayName = "Air75 V3"
         self.profileID = "nuphy.air75-v3"
         self.supportsFullLightingControl = true
+        self.supportsPerKeyColorWrite = true
         self.supportedBacklightModes = Air75BacklightMode.allCases
         self.supportedSidelightModes = Air75SidelightMode.allCases
         self.writableLightingHandles = [0]
@@ -270,9 +277,35 @@ public final class Air75V3LightingController: @unchecked Sendable {
         try (0...1).map(readStateWithRetry)
     }
 
-    /// Reads the RGB values currently stored for the requested logical LED
+    /// Repeated U1 D5 read regression probe using the same keyed transaction
+    /// path as production lighting operations.
+    @_spi(HardwareValidation)
+    public func hardwareReadReceiverStates() throws -> [Air75LightingState] {
+        try (0...1).map { handle in
+            let session = ProtocolSession(
+                expectedCommand: Self.getLightState,
+                preferredConnection: .twoPointFourGHzReceiver,
+                wiredProductID: wiredProductID,
+                receiverProductID: receiverProductID
+            )
+            let response = try session.transact(
+                command: Self.getLightState,
+                length: 17,
+                address: 0,
+                handle: UInt8(handle),
+                payload: []
+            )
+            return try Air75LightingState(
+                handle: handle,
+                raw: payload(from: response, expectedLength: 17)
+            )
+        }
+    }
+
+    /// Reads the RGB values currently stored for the requested physical-key
     /// indexes. D2 addresses RGB bytes, so a contiguous range is fetched in a
-    /// single transaction and then reduced back to the caller's order.
+    /// single transaction and then reduced back to the caller's order. This is
+    /// paired with exact D8 write/readback/recovery for verified updates.
     public func readSignalLights(indices: [UInt8]) throws -> [Air75SignalLight] {
         guard !indices.isEmpty, Set(indices).count == indices.count else {
             throw Air75LightingError.invalidSignalLights
@@ -324,31 +357,49 @@ public final class Air75V3LightingController: @unchecked Sendable {
         return indices.compactMap { lightsByIndex[$0] }
     }
 
-    /// Writes one or more logical indicator LEDs with the firmware's D8
-    /// `index, red, green, blue` payload. The S4 acknowledgement must echo the
-    /// complete payload. D2 is then used for exact hardware readback. If the
-    /// firmware ACKs but stores another index/color, the pre-write colors are
-    /// restored before the error is returned.
+    /// Writes at most 14 physical-key records and requires exact D2 readback.
+    /// U1 emits local duplicate/echo frames before the forwarded keyboard
+    /// response; ProtocolSession filters those frames before this method sees
+    /// the result. Signal Indicator mode is installed over USB-C once and then
+    /// D8 can update keys through either USB-C or U1 2.4G.
     @discardableResult
     public func setSignalLights(_ lights: [Air75SignalLight]) throws -> [Air75SignalLight] {
+        let states = try readStates()
+        guard states.first(where: { $0.handle == 0 })?.backlight.mode
+                == Air75BacklightMode.signalIndicator.rawValue else {
+            throw Air75LightingError.signalIndicatorModeRequired
+        }
+        return try performSignalLightWrite(lights)
+    }
+
+    /// Protected D8/D2 round-trip used only by Air75ProtocolProbe. The product
+    /// API remains disabled until this succeeds on the exact target firmware
+    /// while backlight mode 0x15 (signal indicator) is active.
+    @_spi(HardwareValidation)
+    @discardableResult
+    public func hardwareValidateSignalLights(
+        _ lights: [Air75SignalLight]
+    ) throws -> [Air75SignalLight] {
+        try performSignalLightWrite(lights)
+    }
+
+    private func performSignalLightWrite(
+        _ lights: [Air75SignalLight]
+    ) throws -> [Air75SignalLight] {
         guard !lights.isEmpty, lights.count <= 14,
               Set(lights.map(\.index)).count == lights.count else {
             throw Air75LightingError.invalidSignalLights
         }
         let requested = lights.sorted { $0.index < $1.index }
         let before = try readSignalLights(indices: requested.map(\.index))
+            .sorted { $0.index < $1.index }
+        if before == requested { return before }
         do {
             try writeSignalLightsAcknowledged(requested)
-            Thread.sleep(forTimeInterval: 0.10)
-            let verified = try readSignalLights(indices: requested.map(\.index))
-            guard verified.sorted(by: { $0.index < $1.index }) == requested else {
-                throw Air75LightingError.signalLightReadbackMismatch
-            }
-            return verified
+            return try verifySignalLights(requested)
         } catch {
             try? writeSignalLightsAcknowledged(before)
-            Thread.sleep(forTimeInterval: 0.10)
-            _ = try? readSignalLights(indices: before.map(\.index))
+            _ = try? verifySignalLights(before)
             throw error
         }
     }
@@ -363,7 +414,22 @@ public final class Air75V3LightingController: @unchecked Sendable {
             payload: bytes
         )
         let echoed = payload(from: acknowledgement, expectedLength: bytes.count)
-        guard echoed == bytes else { throw Air75LightingError.invalidResponse }
+        if requestedConnection != .twoPointFourGHzReceiver, echoed != bytes {
+            throw Air75LightingError.invalidResponse
+        }
+    }
+
+    private func verifySignalLights(
+        _ expected: [Air75SignalLight]
+    ) throws -> [Air75SignalLight] {
+        let indexes = expected.map(\.index)
+        for attempt in 0..<5 {
+            Thread.sleep(forTimeInterval: attempt == 0 ? 0.08 : 0.12)
+            let actual = try readSignalLights(indices: indexes)
+                .sorted { $0.index < $1.index }
+            if actual == expected { return actual }
+        }
+        throw Air75LightingError.signalLightReadbackMismatch
     }
 
     public func readSleepConfiguration() throws -> KeyboardSleepConfiguration {
@@ -406,7 +472,7 @@ public final class Air75V3LightingController: @unchecked Sendable {
                 handle: 0,
                 payload: before.raw
             )
-            Thread.sleep(forTimeInterval: 0.18)
+            Thread.sleep(forTimeInterval: requestedConnection == .twoPointFourGHzReceiver ? 0.35 : 0.18)
             _ = try? readSleepConfiguration()
             throw error
         }
@@ -599,8 +665,10 @@ public final class Air75V3LightingController: @unchecked Sendable {
         permitsRGBQuantization: Bool
     ) throws -> [Air75LightingState] {
         var latestStates: [Air75LightingState] = []
-        for attempt in 0..<5 {
-            if attempt > 0 { Thread.sleep(forTimeInterval: 0.12) }
+        let wireless = requestedConnection == .twoPointFourGHzReceiver
+        let attempts = wireless ? 12 : 5
+        for attempt in 0..<attempts {
+            if attempt > 0 { Thread.sleep(forTimeInterval: wireless ? 0.25 : 0.12) }
             let states = try readStates()
             latestStates = states
             let matches = targets.allSatisfy { expected in
@@ -717,6 +785,10 @@ private final class ProtocolSession {
     private let wiredProductID: Int
     private let receiverProductID: Int?
     private var response: [UInt8]?
+    private var responseUpdatedAt: Date?
+    private var settlesReceiverResponses = false
+    private var awaitingPayloadLength = 0
+    private var receiverEchoPayload: [UInt8]?
 
     init(expectedCommand: UInt8, preferredConnection: KeyboardLightingConnection?,
          wiredProductID: Int, receiverProductID: Int?) {
@@ -807,7 +879,8 @@ private final class ProtocolSession {
                 }
                 return result
             } catch let error as Air75LightingError {
-                // 会话密钥属于键盘固件本身，换接口不会消除冲突。
+                // The session key belongs to the keyboard firmware; changing
+                // interfaces cannot resolve this conflict.
                 if case .sessionKeyConflict = error { throw error }
                 lastError = error
             } catch {
@@ -834,7 +907,8 @@ private final class ProtocolSession {
             address: address,
             handle: handle,
             payload: payload,
-            sessionKey: sessionKey
+            requestSessionKey: sessionKey,
+            responseSessionKey: sessionKey
         )
     }
 
@@ -862,15 +936,21 @@ private final class ProtocolSession {
         address: UInt16,
         handle: UInt8,
         payload: [UInt8],
-        sessionKey: UInt8
+        requestSessionKey: UInt8,
+        responseSessionKey: UInt8
     ) throws -> [UInt8] {
+        settlesReceiverResponses = connection(of: device) == .twoPointFourGHzReceiver
+        awaitingPayloadLength = Int(length)
+        receiverEchoPayload = settlesReceiverResponses && !payload.isEmpty
+            ? payload.prefix(Int(length)).map { $0 ^ requestSessionKey }
+            : nil
         let report = NuPhyS4ProtocolCodec.makeReport(
             command: command,
             length: length,
             address: address,
             handle: handle,
             payload: payload,
-            sessionKey: sessionKey
+            sessionKey: requestSessionKey
         )
         let response = try sendAndReceive(report, on: device, command: command)
         do {
@@ -880,7 +960,7 @@ private final class ProtocolSession {
                 length: length,
                 address: address,
                 handle: handle,
-                sessionKey: sessionKey
+                sessionKey: responseSessionKey
             )
         } catch NuPhyS4ProtocolCodec.DecodeError.invalidChecksum {
             throw Air75LightingError.invalidChecksum
@@ -897,6 +977,7 @@ private final class ProtocolSession {
         command: UInt8
     ) throws -> [UInt8] {
         response = nil
+        responseUpdatedAt = nil
         awaitingCommand = command
         var report = reportBytes
         let reportCount = report.count
@@ -914,11 +995,15 @@ private final class ProtocolSession {
         }
 
         let deadline = Date().addingTimeInterval(1.5)
-        while response == nil && Date() < deadline {
+        while Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+            if let response,
+               !settlesReceiverResponses
+                || responseUpdatedAt.map({ Date().timeIntervalSince($0) >= 0.12 }) == true {
+                return response
+            }
         }
-        guard let response else { throw Air75LightingError.timeout(command: command) }
-        return response
+        throw Air75LightingError.timeout(command: command)
     }
 
     private func priority(
@@ -975,6 +1060,15 @@ private final class ProtocolSession {
         let session = Unmanaged<ProtocolSession>.fromOpaque(context).takeUnretainedValue()
         let bytes = Array(UnsafeBufferPointer(start: report, count: length))
         guard bytes.count >= 2, bytes[0] == 0xAA, bytes[1] == session.awaitingCommand else { return }
+        if session.settlesReceiverResponses,
+           session.awaitingPayloadLength > 0,
+           bytes.count >= 8 + session.awaitingPayloadLength {
+            let payload = Array(bytes[8..<(8 + session.awaitingPayloadLength)])
+            if payload.allSatisfy({ $0 == 0 }) || payload == session.receiverEchoPayload {
+                return
+            }
+        }
         session.response = bytes
+        session.responseUpdatedAt = Date()
     }
 }

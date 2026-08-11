@@ -41,7 +41,8 @@ public enum CodexDesktopConfirmationState {
             negativeMarkers.contains { label.contains($0) }
         }
         let hasAffirmative = normalized.contains { label in
-            // "不允许" and "disallow" contain the affirmative token. A
+            // The Chinese "不允许" and English "disallow" contain the
+            // affirmative token. A
             // negative label must never satisfy both halves of the pair.
             !negativeMarkers.contains(where: { label.contains($0) })
                 && affirmativeMarkers.contains(where: { label.contains($0) })

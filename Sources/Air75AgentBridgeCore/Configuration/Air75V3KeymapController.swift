@@ -19,31 +19,31 @@ public enum Air75KeymapError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .deviceNotFound:
-            return "未找到 Air75 V3 的配置接口；请使用 USB-C 数据线连接，或插入 2.4G 接收器"
+            return "No Air75 V3 management interface was found; connect a USB-C data cable or insert the 2.4G receiver."
         case .managerOpen(let code):
-            return "无法打开 Air75 V3 配置接口（0x\(String(UInt32(bitPattern: code), radix: 16))）"
+            return "Could not open the Air75 V3 management interface (0x\(String(UInt32(bitPattern: code), radix: 16)))."
         case .writeFailed(let code):
-            return "Air75 V3 键位写入失败（0x\(String(UInt32(bitPattern: code), radix: 16))）"
+            return "Air75 V3 keymap write failed (0x\(String(UInt32(bitPattern: code), radix: 16)))."
         case .timeout(let command):
-            return "等待 Air75 V3 键位响应超时（命令 0x\(String(command, radix: 16))）"
+            return "Timed out waiting for the Air75 V3 keymap response (command 0x\(String(command, radix: 16)))."
         case .invalidResponse:
-            return "Air75 V3 返回了无效的键位协议帧"
+            return "Air75 V3 returned an invalid keymap protocol frame."
         case .invalidChecksum:
-            return "Air75 V3 键位协议校验失败"
+            return "Air75 V3 keymap protocol checksum validation failed."
         case .invalidLength:
-            return "Air75 V3 键位表长度不符合 Air75 V3 ANSI 布局"
+            return "The Air75 V3 keymap length does not match the verified ANSI layout."
         case .incompatibleLayout(let index, let value):
-            return "键盘第 \(index) 个矩阵位置不是已验证布局（0x\(String(value, radix: 16))），已停止写入"
+            return "Matrix position \(index) is not part of the verified keyboard layout (0x\(String(value, radix: 16))); the write was stopped."
         case .verificationFailed:
-            return "键位写入后的逐字节回读校验失败，已尝试恢复原配置"
+            return "Byte-for-byte keymap readback failed after the write; recovery of the original configuration was attempted."
         case .restoreFailed:
-            return "原始键位恢复后的逐字节校验失败"
+            return "Byte-for-byte verification failed after restoring the original keymap."
         case .originalBackupNotFound:
-            return "键盘里仍是 Codex 专用键位，但没有找到可验证的原始键位备份；为避免覆盖真实键位，已停止操作"
+            return "The keyboard still has the Codex keymap, but no verifiable original backup was found; the operation stopped to avoid overwriting real keys."
         case .encryptedSessionData:
-            return "Air75 V3 返回的键位数据无法通过布局校验；请退出 NuPhyIO、重新插线后再试"
+            return "Air75 V3 keymap data failed layout validation; quit NuPhyIO, reconnect the keyboard, and try again."
         case .sessionKeyConflict(let key):
-            return "Air75 V3 会话密钥不一致（0x\(String(format: "%02X", key))）；请关闭其他键盘配置页面后重试"
+            return "The Air75 V3 session key conflicts with another configurator (0x\(String(format: "%02X", key))); close other keyboard configuration pages and try again."
         }
     }
 }

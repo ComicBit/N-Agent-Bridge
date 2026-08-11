@@ -45,7 +45,7 @@ if CommandLine.arguments.contains("--codex-six-task-dry-run") {
         .appendingPathComponent(".codex", isDirectory: true)
     let reader = CodexThreadIndexReader(codexHome: codexHome)
     guard let databaseURL = reader.currentDatabaseURL() else {
-        fputs("未找到 ~/.codex/state_<N>.sqlite；Codex Desktop 是否安装并运行过？\n", stderr)
+        fputs("Could not find ~/.codex/state_<N>.sqlite. Has Codex Desktop been installed and run?\n", stderr)
         exit(EXIT_FAILURE)
     }
     print("INDEX \(databaseURL.lastPathComponent)")
@@ -64,7 +64,7 @@ if CommandLine.arguments.contains("--codex-six-task-dry-run") {
             try? handle.close()
         }
         let idPrefix = String(entry.threadID.prefix(8))
-        let age = snapshot.eventDate.map { String(format: "%.0fs前", -$0.timeIntervalSinceNow) } ?? "无事件时间"
+        let age = snapshot.eventDate.map { String(format: "%.0fs ago", -$0.timeIntervalSinceNow) } ?? "no event time"
         print("F\(index + 1)  \(idPrefix)…  \(snapshot.state.rawValue)  (\(snapshot.state.displayName), \(age))")
     }
     exit(EXIT_SUCCESS)
@@ -205,6 +205,9 @@ check(Air75LightingState.sidelightPercent(from: 0xC0) == 75,
       "sidelight 0-255 raw brightness converts to percent")
 check(Air75LightingState.sidelightRawValue(fromPercent: 75) == 0xBF,
       "sidelight percent converts to 0-255 raw brightness")
+check(Air75BacklightMode(rawValue: 0x03) == .staticColor
+        && Air75BacklightMode(rawValue: 0x04) == .breathing,
+      "Air75 V3 mode 0x03 is static and 0x04 is breathing")
 do {
     let state = try Air75LightingState(
         handle: 0,
@@ -222,6 +225,8 @@ let d8Example = [
 ].flatMap(\.encodedBytes)
 check(d8Example == [0x00, 0xFF, 0x00, 0x00, 0x01, 0x00, 0xFF, 0x00],
       "D8 signal light payload matches firmware protocol")
+check(Air75V3LightingController().supportsPerKeyColorWrite,
+      "per-key RGB writing is enabled after USB and U1 D8/D2 hardware verification")
 
 let handshakeChallenge = (0..<NuPhyS4ProtocolCodec.maximumPayloadSize).map { UInt8($0) }
 let deterministicHandshake = NuPhyS4ProtocolCodec.Handshake(challenge: handshakeChallenge)
@@ -275,6 +280,14 @@ check(SignalLightLayout.index(layoutID: "nuphy.air75-v3.ansi-d8", usagePage: 0x0
       "Air75 V3 number 1 resolves to official-layout light index")
 check(SignalLightLayout.index(layoutID: "nuphy.air75-v3.ansi-d8", usagePage: 0x07, usage: 0x68) == 1,
       "Air75 V3 Bridge F13 source resolves to physical F1 light")
+check(SignalLightLayout.key(layoutID: "nuphy.air75-v3.ansi-d8", named: "F1")?.index == 1,
+      "developer key resolver maps F1 to signal-light index 1")
+check(SignalLightLayout.key(layoutID: "nuphy.air75-v3.ansi-d8", named: "F13")?.index == 1,
+      "developer key resolver maps installed F13 alias to physical F1")
+check(SignalLightLayout.key(layoutID: "nuphy.air75-v3.ansi-d8", named: "printscreen")?.index == 13,
+      "developer key resolver accepts normalized Print Screen")
+check(SignalLightLayout.key(layoutID: "nuphy.air75-v3.ansi-d8", named: "84") == nil,
+      "developer key resolver rejects arbitrary numeric LED indexes")
 check(Air75V3LightingController.escapeSignalLightIndex == 0,
       "legacy task color can be explicitly cleared from Esc")
 
@@ -360,7 +373,8 @@ let completedAfterActivity = tailWithoutStart + Data("\n{\"timestamp\":\"2026-07
 check(CodexRolloutStatusParser.parse(data: completedAfterActivity, now: rolloutNow).state == .complete,
       "Codex terminal event overrides ongoing activity")
 
-// 用户主动停止不是故障：turn_aborted 应回到空闲而不是红灯。
+// A user-initiated stop is not a failure: turn_aborted should return to idle,
+// not become a red light.
 let abortedRollout = runningRollout + Data("\n{\"timestamp\":\"2026-07-19T05:00:05.000Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"turn_aborted\"}}".utf8)
 check(CodexRolloutStatusParser.parse(data: abortedRollout, now: rolloutNow).state == .idle,
       "Codex rollout aborted maps to idle")
@@ -399,7 +413,7 @@ check(!CodexDesktopConfirmationState.buttonLabelsRequireConfirmation(["不允许
 check(!CodexDesktopConfirmationState.buttonLabelsRequireConfirmation(["Disallow", "Decline"]),
       "negative English labels cannot satisfy the affirmative marker")
 
-// 缓存的原始解析结果在每次轮询时重新计算衰减。
+// Recompute decay from the cached raw parse result on every poll.
 let staleComplete = CodexTaskLightSnapshot(threadID: "t", state: .complete, eventDate: rolloutNow.addingTimeInterval(-61))
 check(CodexRolloutStatusParser.applyDecay(to: staleComplete, now: rolloutNow).state == .idle,
       "complete decays to idle after 60s")
@@ -430,7 +444,8 @@ check(CodexRolloutStatusParser.applyDecay(
     preserveUnreadCompletion: true
 ).state == .complete, "unread completion may remain green")
 
-// 侧灯聚合：显示六任务里最需要关注的状态。
+// Aggregate the side-light state to show the most important state among six
+// tasks.
 check(CodexTaskLightAggregator.aggregate([]) == .idle, "aggregate empty is idle")
 check(CodexTaskLightAggregator.aggregate([.idle, .complete, .reasoning]) == .reasoning,
       "aggregate prefers reasoning over complete")
@@ -471,7 +486,8 @@ check(customSlots[0].threadID == "running" && customSlots[1].threadID == nil
         && customSlots[2].threadID == "recent" && customSlots.count == 6,
       "custom Agent mode keeps exact slot identity and empty keys")
 
-// Codex 线程索引：只取未归档用户线程、按 recency 降序、限六条。
+// Codex thread index: keep unarchived user threads, sort by recency, and cap
+// the result at six.
 let indexDirectory = FileManager.default.temporaryDirectory
     .appendingPathComponent("Air75SelfTest-Index-\(UUID().uuidString)", isDirectory: true)
 try? FileManager.default.createDirectory(at: indexDirectory, withIntermediateDirectories: true)

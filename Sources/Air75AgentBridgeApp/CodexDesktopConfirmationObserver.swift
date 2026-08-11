@@ -121,7 +121,8 @@ final class CodexDesktopConfirmationObserver: @unchecked Sendable {
     }
 
     /// Confirmation actions must belong to the same small Accessibility
-    /// subtree. Never combine the composer's permanent "请求批准" button with
+    /// subtree. Never combine the composer's permanent "请求批准" / request-
+    /// approval button with
     /// an unrelated Cancel/Later button elsewhere in the Codex window.
     private static func localButtonGroupRequiresConfirmation(around button: AXUIElement) -> Bool {
         var element = button

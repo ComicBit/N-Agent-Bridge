@@ -2,27 +2,48 @@
 
 ## 0.14.2 Development Build
 
-- 版本：`0.14.2 (56)`。
-- 兼容 Air75 V3 官方 1.0.16.6 键位表的已确认变体：第 8 层旋钮按下 p60 可以是未分配值 `0x0000`。
-- 配置时只把这一处空值规范化为专用事件 `0x0048`，再写入 F13–F24 并完整回读；其他层、位置和未知值的安全检查保持严格。
-- 修复部分新 Mac 点击“连接并启用”后在实际写入前停止、看起来没有完成配置的问题。
-- 保留 0.14.1 的可见确认卡片判断修复，不会因为普通按钮或历史隐藏卡片点亮橙灯。
-- Universal（arm64 + x86_64）固定签名 App、软件回归、Bundle 资源和 DMG CRC/只读校验：通过。
+- Version: `0.14.2 (56)`.
+- Supports the confirmed Air75 V3 official-firmware 1.0.16.6 keymap variant
+  where layer-8 knob press p60 may be unassigned as `0x0000`.
+- Only that one empty value is normalized to dedicated event `0x0048` before
+  F13-F24 installation and full readback. All other layers, positions, and
+  unknown values remain subject to strict safety checks.
+- Fixed a setup path that stopped on some newer Macs before the actual
+  F13-F24 write, making configuration appear incomplete.
+- Retained the 0.14.1 visible-confirmation-card fix, so ordinary buttons or
+  stale hidden cards do not turn the status light orange.
+- Universal (arm64 + x86_64) fixed-signing app, software regression, bundle
+  resources, and DMG CRC/read-only checks passed.
 
-Development DMG SHA-256：`9e5cf34158d0259521778292e23330902f9cd11c2c1fc506d898744703428ed6`
+Development DMG SHA-256:
+`9e5cf34158d0259521778292e23330902f9cd11c2c1fc506d898744703428ed6`
 
 ## 0.14.0 Development Build
 
-- 版本：`0.14.0 (54)`。
-- 产品范围收口为 NuPhy Air75 V3 ANSI；删除其他型号的 Profile、驱动、灯位表和未验证入口。
-- 兼容 Air75 V3 官方固件 `1.0.16.6`：新增官方 `0xEE` 会话握手，并同时解析旧固件“加密头+数据”和新固件“明文头+加密数据”两种回复。
-- 修复固件升级后灯光页长期显示“USB-C 待响应”、控件置灰和状态灯不落到实体键的问题。
-- 灯光写入只修改 macOS handle 0；所有 D6/D8 写入都要求 ACK 和精确回读，失败会恢复操作前状态。
-- 每次 USB-C 配置都会读取真实 1568-byte 键位表，必要时补写 F13–F24 并完整回读，避免朋友电脑仍触发 F1–F12 原生功能。
-- 首次安装只需拖入 Applications、授予输入监控与辅助功能、用 USB-C 点“连接并启用”。
-- Air75 V3 1.0.16.6 实机 A1/D5/D6/D2/D8/B2 备份、临时写入、精确回读和最终恢复：通过。
-- Universal（arm64 + x86_64）App、固定签名、DMG CRC/只读挂载、Bundle 资源、安装后两轮冷启动与最终 SHA-256：通过。
+- Version: `0.14.0 (54)`.
+- Product scope is NuPhy Air75 V3 ANSI; other profiles, drivers, LED maps,
+  and unverified entry points were removed.
+- Supports official Air75 V3 firmware `1.0.16.6`, including the `0xEE`
+  session handshake and both observed response-header formats.
+- Fixed the post-upgrade lighting page staying in **USB-C waiting**, disabled
+  controls, and status lights not landing on physical keys.
+- Lighting writes modify only macOS handle 0. Every D6/D8 write requires an
+  ACK and exact readback and attempts to restore the pre-write state on
+  failure.
+- USB-C setup reads the real 1,568-byte keymap, installs F13-F24 when needed,
+  and reads the complete map back so another computer does not trigger the
+  native F1-F12 actions.
+- First setup requires dragging the app into Applications, granting Input
+  Monitoring and Accessibility, and choosing **Connect and Enable** over
+  USB-C.
+- Upstream recorded physical A1/D5/D6/D2/D8/B2 backup, temporary-write,
+  exact-readback, and final-restore checks on Air75 V3 1.0.16.6.
+- Universal (arm64 + x86_64) app, fixed signing, DMG CRC/read-only mount,
+  bundle resources, two post-install cold starts, and final SHA-256 checks
+  passed in the upstream release record.
 
-Development DMG SHA-256：`477a34f1d9a411bd91f6f25aa27d4382aba8bdc0bd986d1f6538744d8a911e47`
+Development DMG SHA-256:
+`477a34f1d9a411bd91f6f25aa27d4382aba8bdc0bd986d1f6538744d8a911e47`
 
-> 该包使用固定本地签名，适合公开源码和朋友测试，但不是 Apple Developer ID 公证包。
+> This package uses fixed local signing for public-source and friend testing;
+> it is not an Apple Developer ID notarized package.

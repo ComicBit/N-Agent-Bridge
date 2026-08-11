@@ -1,7 +1,16 @@
-# Product
+# Product scope
 
-N Agent Bridge 是 NuPhy Air75 V3 ANSI 的第三方 Codex 控制应用。它把物理 F 区和旋钮映射为 Codex 动作，并用六颗可自定义实体键显示六个 Agent 的实时状态：空闲、思考、完成、确认和报错。
+N Agent Bridge is a third-party macOS control application for the NuPhy
+Air75 V3 ANSI. It maps the physical function row and rotary knob to Codex
+actions and uses six configurable physical keys for live Agent status.
 
-应用原生使用 SwiftUI，不记录普通文字输入；停止控制或退出后立即解除键盘事件拦截。首次 USB-C 配置会备份完整板载键位、安装 F13–F24 专用事件并回读验证。所有灯光写入都限定 Air75 V3 已验证接口，并在失败时恢复。
+The app is native SwiftUI, does not record ordinary text input, and releases
+keyboard interception when control is stopped or the app exits. First-time
+USB-C setup backs up the complete onboard keymap, installs the F13-F24
+dedicated events, and verifies the readback. Lighting writes are restricted to
+the verified Air75 V3 management interface and recover on failure.
 
-本项目与 OpenAI、Codex、NuPhy 均无隶属关系，不冒充官方硬件。当前版本不支持其他 NuPhy 型号；后续型号必须重新完成协议、灯位、键位长度、备份和恢复实机验证后才能加入。
+This project is independent of OpenAI, Codex, and NuPhy and does not present
+itself as official hardware software. Other NuPhy models are not supported.
+A future model must independently pass protocol, LED map, keymap-size,
+backup, recovery, and physical-device validation before it can be enabled.

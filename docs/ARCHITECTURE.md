@@ -1,25 +1,121 @@
 # Architecture
 
-```text
-NuPhy Air75 V3 ANSI (USB / Bluetooth / 2.4G)
-  -> HIDDeviceManager + DeviceFingerprintMatcher
-  -> MappingEngine
-  -> BridgeStore / AgentState
-  -> CodexAppServerBackend | ClaudeCodeBackend
-  -> OverlayPresenter + SwiftUI
+The project is intentionally organized around a one-way dependency flow:
 
-Air75 V3 verified configuration channel (USB / U1 2.4G usage 1:0)
-  -> Air75V3LightingController
-  -> NuPhyIO 64-byte checksummed reports
-  -> backup -> write -> ACK -> delayed readback
+```text
+macOS HID discovery and input
+        |
+        v
+Air75 V3 device identity and verified drivers
+        |
+        +--> keymap / knob configuration
+        +--> lighting-zone and per-key RGB read APIs
+        |
+        v
+generic keyboard input, mapping, and state models
+        |
+        +--> Codex adapter
+        +--> Claude Code adapter
+        +--> air75 developer CLI
+        +--> SwiftUI application orchestration
 ```
 
-`Air75AgentBridgeCore` 不依赖 UI，包含 Models、Device/HID、Mapping、Configuration、Agent、Audio 与 Settings。App target 只负责状态编排和呈现。Inspector 复用同一设备识别逻辑，避免诊断工具与产品判断漂移。
+## Source boundaries
 
-Codex Agent 槽位不再等同于侧栏第 1–6 行。`CodexThreadIndexReader` 提供候选线程元数据，`CodexDesktopMetadataReader` 从 Codex 全局状态读取未读/置顶 ID、项目名称/顺序、线程项目归属以及左侧栏 `thread-descriptions-v1` 任务名，`CodexAgentSlotResolver` 按最近、置顶、优先或自定义策略产生六个稳定线程 ID；按键通过 `codex://threads/<thread-id>` 深链打开精确对话。自定义 UI 按 Codex 左侧栏的“项目 → 对话”层级显示，但只绑定具体线程 ID；空槽使用 `codex://threads/new`，并在索引出现新线程后自动绑定。
+### HID and discovery
 
-`CodexDesktopConfirmationObserver` 补齐 rollout 缺失的 Desktop 表单确认：辅助功能遍历时只读取按钮角色/标签，活动日志解析器只接受 `active` 与 `conversationId` 字段；匹配到确认组合后，`CodexDesktopStatusObserver` 对精确线程叠加 `waitingForConfirmation`。焦点按钮走高频轻量路径，完整控件树只低频复核，避免常驻高 CPU。
+- `HIDDeviceManager` owns `IOHIDManager` lifecycle, device enumeration,
+  profile matching, input callbacks, runtime input filtering, and the Input
+  Monitoring request.
+- `DeviceFingerprintMatcher` never treats a product name as sufficient
+  identity. USB recognition requires the profile’s VID/PID and product alias;
+  Bluetooth candidates require the profile rules or a prior user association.
+- `DeviceProfileRegistry` loads declarative JSON profiles. A profile alone does
+  not authorize a vendor HID write path.
 
-实体键绑定同时保存可选的 `signalLightIndex`。Air75 V3 使用 NuPhyIO 官方 ANSI 布局与固件 skip 规则，把 HID Usage 转成 D8 灯位；动作换键时灯位一起交换。
+### Air75 V3 hardware drivers
 
-设备识别要求 Air75 V3 的 VID/PID、产品别名、制造商、Transport、Usage、序列号与已确认蓝牙别名组合；名称从不单独构成可信匹配。IOHIDManager 不以 seize 方式打开设备，默认只发布 F1–F12、已学习 Usage、候选旋钮 Consumer Usage 或 vendor-defined Usage。灯光控制器使用更严格的精确 USB 身份和配置接口匹配，不与普通键盘输入接口混用。S4 管理事务由进程级协调器串行化，每个逻辑事务先执行 0xEE 会话握手。
+- `NuPhyS4ProtocolCodec` is a pure 64-byte frame encoder/decoder. It has no
+  Codex, SwiftUI, Accessibility, or application-state dependency.
+- `NuPhyHIDOperationCoordinator` serializes management frames because S4
+  responses have no transaction ID.
+- `Air75V3KeymapController` performs the narrow 1,568-byte B2/B3 keymap
+  workflow, including layout validation, backup-safe installation, readback,
+  and recovery.
+- `Air75V3LightingController` performs the A1/D2/D5/D6/F3/F5 workflow and
+  keeps per-key RGB reads separate from the verified zone writes.
+- `SignalLightLayout` is the single source of truth for the ANSI physical-key
+  to D2 read-index map; it does not authorize per-key writes.
+- `KeyboardDriverRegistry` is the write-capability gate: an unknown or
+  software-only profile cannot acquire a hardware driver by JSON configuration
+  alone.
+
+### Generic keyboard APIs
+
+`Core/Protocols.swift` and `Device/KeyboardDriverRegistry.swift` expose the
+application-facing contracts:
+
+- `KeyboardDeviceProvider` for discovery and lifecycle;
+- `KeyboardInputProvider` for HID events;
+- `KeyboardKeymapDriver` for validated install/restore;
+- `KeyboardLightingDriver` for zone operations and read-only per-key RGB;
+- `KeyboardSleepDriver` for the verified sleep configuration;
+- `MappingEngine` and `BridgeModels` for model-independent bindings and state.
+
+The hardware drivers do not import Codex or the SwiftUI app. The current Swift
+package keeps the Codex adapters in the same `Air75AgentBridgeCore` target for
+compatibility with the upstream package, but the source-level boundary is
+already one-way: application integrations consume generic contracts and the
+Air75 protocol layer does not call an integration.
+
+### Integrations and presentation
+
+- `Agent/Codex/` contains the app-server and local Codex state adapters.
+- `Agent/ClaudeCode/` contains the optional Claude Code process adapter.
+- `Sources/Air75AgentBridgeApp/` contains `BridgeStore`, SwiftUI views,
+  Accessibility relays, menu-bar actions, and lifecycle orchestration.
+- `Sources/Air75DeveloperCLI/` consumes only `Air75AgentBridgeCore`. It is the
+  independent path for device discovery, firmware reads, key-name resolution,
+  and read-only per-key RGB inspection without Codex running. Per-key writes
+  remain disabled until a real hardware transaction is verified.
+- `Sources/Air75ProtocolProbe/` is separate from normal product behavior and
+  is allowed to run the protected physical acceptance sequence only when the
+  operator explicitly requests it.
+
+## Runtime sequencing
+
+1. `HIDDeviceManager` enumerates interfaces and produces `DeviceSnapshot` values.
+2. The app chooses a recognized profile and selects the registered drivers.
+3. Lighting discovery selects USB-C or the U1 receiver based on active input
+   and verified product identity. Bluetooth is never promoted to a lighting
+   management path.
+4. Every logical S4 transaction performs a fresh `0xEE` handshake and runs
+   under the process-wide coordinator.
+5. Any write follows read/backup -> write -> ACK -> delayed readback -> exact
+   verification. Failure attempts recovery and reports the uncertainty.
+6. Integrations receive generic events and decide what Codex, Claude Code, the
+   CLI, or a future IDE adapter should do.
+
+## Permissions
+
+- Input Monitoring permits the HID listener to observe dedicated controls.
+- Accessibility permits targeted synthetic events to the active Codex window.
+- The app does not request microphone access for F11; it triggers Codex’s own
+  dictation action.
+- No driver seizes the keyboard. Ordinary text is not stored or uploaded.
+
+## Future split point
+
+If the package later grows beyond one supported keyboard, the stable split is:
+
+```text
+KeyboardFoundation (generic models, protocols, HID lifecycle)
+Air75V3Driver (S4 codec, keymap, lighting, ANSI map)
+ApplicationIntegrations (Codex, Claude Code, IDEs, shell, CI)
+Air75DeveloperCLI (diagnostics)
+Air75AgentBridgeApp (SwiftUI orchestration)
+```
+
+That split is deliberately deferred until a second verified hardware driver
+creates a real need. The current baseline keeps the smaller reviewable change
+surface while preventing Codex from becoming a dependency of the Air75 layer.

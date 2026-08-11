@@ -1,22 +1,42 @@
 # Air75 V3 Keymap
 
-| 物理键 | 板载专用值 | 默认动作 |
+| Physical key | Installed hardware value | Default action |
 | --- | --- | --- |
-| F1–F6 | F13–F18 | Agent 1–6 |
+| F1-F6 | F13-F18 | Agent 1-6 |
 | F7 | F19 | Fast Mode |
-| F8 / F9 | F20 / F21 | 批准 / 拒绝 |
-| F10 | F22 | 新建任务 |
-| F11 | F23 | Codex 原生听写 |
-| F12 | F24 | 发送 |
+| F8 / F9 | F20 / F21 | Approve / Decline |
+| F10 | F22 | New task |
+| F11 | F23 | Native Codex dictation |
+| F12 | F24 | Send |
 
-“连接并启用”先读取并持久备份完整 1568-byte 键位表，再把 macOS/Windows 基础层的物理 F1–F12 改为 F13–F24。旋钮左转、按下、右转改为 Scroll Lock、Pause、Print Screen，供应用识别推理深度控制。其他矩阵字节保持不变。
+**Connect and Enable** first reads and persists the complete 1,568-byte
+keymap, then changes physical F1-F12 to F13-F24 in the macOS/Windows base
+layers. Knob left, press, and right become Scroll Lock, Pause, and Print
+Screen so the app can identify reasoning-level controls. All other matrix
+bytes remain unchanged.
 
-每次写入使用官方 `0xEE` 会话握手，按块执行 B3，随后 B2 读取完整 1568 bytes 逐字节验证。长度、原始布局、ACK 或回读任一异常都会中止并尝试恢复写入前数据；未确认的密文绝不保存为原始备份。
+Every write begins with the official `0xEE` session handshake, writes B3 in
+chunks, and reads the complete 1,568 bytes back with B2 for byte-for-byte
+verification. A length, original-layout, ACK, or readback failure stops the
+operation and attempts to restore the pre-write map. Unverified ciphertext is
+never saved as an original backup.
 
-应用启动或 USB-C 重连时会直接读取键盘核对专用层，不只相信本机配置文件。固件升级把键盘恢复为 F1–F12 时，界面会要求重新配置。已知旧版 `F13 / F15 / Tab / F16…` 异常序列会被精确修复，真正的用户自定义键不会被覆盖。
+At launch and after USB-C reconnect, the app reads the keyboard to verify the
+installed layer instead of trusting only the local configuration. If a
+firmware update restores F1-F12, the UI asks for setup again. Known historical
+`F13 / F15 / Tab / F16...` corruption is repaired exactly; genuine user
+customizations are not overwritten.
 
-在“按键”页可把动作学习到数字、字母、F 区或导航键。自定义普通键属于软件映射；控制开启时 CGEvent session tap 消费原字符，停止后解除。`usage 0xFFFFFFFF` 是 HID 数组占位值，学习器和运行时都必须拒绝。
+The **Keys** page can learn actions onto numbers, letters, the F-row, or
+navigation keys. Custom ordinary keys are software mappings: when control is
+enabled, a CGEvent session tap consumes the original character, and stopping
+control releases it. `usage 0xFFFFFFFF` is an HID-array placeholder and must
+be rejected by both the learner and runtime.
 
-Agent 1–6 的灯位按当前实体 Usage 实时解析。Air75 V3 ANSI 使用官方可见键顺序并排除三个隐藏旋钮项：F1=1、数字 1=16。动作换键后 D8 状态色移动到新位置，旧位置写黑清除。
+D2/D8 per-key RGB management uses the current physical HID usage. The ANSI
+map excludes three hidden knob entries: F1 is index 1 and the number 1 key is
+index 16. Writes require Signal Indicator mode and use exact D2 readback with
+recovery on mismatch over USB-C or the official U1 receiver.
 
-Agent 对话绑定使用稳定 Codex thread ID；最近、置顶、优先和自定义四种模式都不依赖会变化的侧栏行号。
+Agent conversation assignment uses stable Codex thread IDs. Recent, pinned,
+priority, and custom modes do not depend on changing sidebar row numbers.

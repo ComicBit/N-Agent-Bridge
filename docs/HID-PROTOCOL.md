@@ -1,24 +1,42 @@
 # Air75 V3 HID Protocol
 
-## 身份与接口
+This is a short index into the detailed [Air75 V3 protocol baseline](AIR75_V3_PROTOCOL.md).
+It describes the reverse-engineered ANSI implementation only.
 
-- USB：VID `0x19F5`、PID `0x1028`、产品名 `Air75 V3`。
-- U1 接收器：VID `0x19F5`、PID `0x2620`；只在能回读目标键盘身份时使用。
-- S4 配置通道：Usage Page `0x01` / Usage `0x00`，64-byte input/output report，report ID 0。
+## Identity and interface
 
-## 会话
+- USB: VID `0x19F5`, PID `0x1028`, product `Air75 V3`.
+- U1 receiver: VID `0x19F5`, PID `0x2620`; use only when the target keyboard
+  identity can be read back.
+- S4 management channel: usage page `0x01`, usage `0x00`, 64-byte input and
+  output reports, report ID 0.
 
-官方固件 1.0.16.6 在普通 S4 命令前要求 `0xEE SetSecretKey`。请求携带 56-byte challenge；challenge 第 20 字节是当前 XOR 会话密钥。每个逻辑事务重新握手，以兼容重连、休眠或 NuPhyIO 改变设备 RAM 中密钥的情况。
+## Session
 
-1.0.16.6 回复保留明文路由头并加密 payload；旧固件可能同时加密路由头和 payload。解码器会验证命令、长度和校验和后才接受任一格式，不用“看起来像数据”的启发式猜测。
+Official firmware 1.0.16.6 requires `0xEE SetSecretKey` before each ordinary
+S4 command. The request carries a 56-byte challenge; challenge byte 20 is the
+single-byte XOR session key. A fresh handshake per logical transaction
+handles reconnects, sleep/wake, and other configuration clients changing the
+keyboard’s in-memory key.
 
-## 已验证命令
+Firmware 1.0.16.6 keeps the response route header plain and encrypts the
+payload. Older firmware may encrypt both route header and payload. The
+decoder validates the command, length, address, handle, and checksum before
+accepting either format; it does not guess from data that merely looks
+plausible.
 
-- `A1`：固件版本。
-- `B2/B3`：1568-byte Air75 V3 键位读取/写入。
-- `D1/D2`：灯数与单灯颜色读取。
-- `D5/D6`：灯效状态读取/写入；正式应用只写 macOS handle 0。
-- `D8`：单灯颜色写入；写后必须 D2 精确回读。
-- `F3/F5`：休眠设置读取/写入。
+## Implemented commands
 
-协议细节、D5 字段和 D8 数据结构见 `docs/LIGHTING-PROTOCOL.md`。任何未知 PID、长度、ACK、校验和或回读结果都会停止写入。
+- `A1`: raw firmware information.
+- `B2/B3`: 1,568-byte Air75 V3 keymap read/write.
+- `D2`: RGB triples for physical-key indexes.
+- `D5/D6`: lighting-zone state read/write; the product writes only macOS
+  handle 0.
+- `D8`: verified per-key RGB write over USB-C and U1, followed by exact D2
+  readback and recovery on mismatch.
+- `F3/F5`: sleep configuration read/write.
+
+Older notes mention `D1`, but the current implementation does not send or
+decode it. Protocol details, D5 fields, and the D2 read map are in
+`docs/AIR75_V3_PROTOCOL.md` and `docs/LIGHTING-PROTOCOL.md`. Any unknown PID,
+length, ACK, checksum, or readback result stops a write.

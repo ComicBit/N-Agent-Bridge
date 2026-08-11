@@ -1,52 +1,147 @@
 # Progress
 
-更新时间：2026-07-22 CST
+The entries below preserve the upstream project history. Physical-device
+results recorded in the historical entries are upstream evidence; they are
+not re-run by the current software-only bootstrap unless explicitly stated.
 
-## 0.15.0：中英文界面与发行目录清理
+## 2026-08-11: English-first developer foundation
 
-- 设置 → 通用新增“界面语言 / Interface Language”，支持中文和 English 即时切换并持久保存；新安装按 macOS 首选语言选择默认界面。
-- 侧栏、首次设置、概览、按键、灯光、设置、菜单栏与运行时提示统一接入语言环境；设备未连接时由设备层返回的“支持的 NuPhy 键盘”占位也经过本地化，避免英文界面夹杂中文。
-- 没有改动 HID、F13–F24、旋钮、0xEE 会话、D6/D8 灯光、Codex 状态或权限逻辑。`Air75CoreSelfTest --software-only` 全部通过，Universal App 构建通过。
-- 删除 `.build`、旧 `dist` 和 `.DS_Store` 等可再生成内容后重新构建；源码、协议文档、发布脚本与用户硬件备份均保留。
+- Cloned the upstream N Agent Bridge repository at the `0.15.0-development`
+  baseline and retained its MIT attribution and source provenance.
+- Documented the Air75 V3 architecture, ANSI D2 per-key RGB read map, S4
+  frame format, session handshake, command boundaries, firmware assumptions,
+  transport limits, and safety rules in English.
+- Added the independent `air75` developer CLI for compatible-device listing,
+  metadata/firmware reads, named ANSI D2 per-key RGB reads, and protected
+  per-key diagnostics without Codex running.
+- Added software coverage for the F1/F13 physical-location aliases and
+  rejected arbitrary numeric LED addresses.
+- Verified the portable software self-test, the new CLI build, CLI help/map
+  output, and read-only device enumeration. Local USB-C validation on the
+  connected Air75 V3 found the exact `19F5:1028` management interface, read
+  A1 and both D5 handles, and passed D6 no-op, temporary-change, and exact
+  restore checks. D2 returned the per-key F1 color. D8 was then verified after
+  selecting Signal Indicator mode `0x15`: USB-C changed and restored F1, while
+  U1 copied all 84 key colors, blinked only F1 red for 60 seconds, and restored
+  the complete signal palette and original Static mode. U1 D6 also changed
+  `0x03` to `0x15`, preserved side-light bytes and handle 1, and restored the
+  exact original D5 state. The receiver fix filters duplicated local zero/echo
+  frames and waits for the forwarded keyboard response before D5/D2 readback.
+- The next implementation slice is the platform-neutral six-key developer
+  state machine described in `NEXT_STEPS.md`; the six-key workflow itself is
+  intentionally not implemented yet.
 
-## 0.14.2：Air75 V3 第八层空旋钮兼容
+## 0.15.0: Bilingual interface and distribution cleanup
 
-- 定位朋友电脑“点击配置后不写入 F13–F24”的根因：官方 Air75 V3 1.0.16.6 某些键位表会让第 8 层旋钮按下 p60 保持为未分配值 `0x0000`，0.14.1 的严格白名单因此在写入前安全终止。
-- 安全检查只对第 8 层 p60 增加 `0x0000` 这一种已确认原值，并在生成 Bridge Profile 时规范化为 `0x0048`；第 1–7 层空值、其他位置空值和未知值仍然拒绝，完整 1568-byte 备份、ACK、逐字节回读与失败恢复均未放宽。
-- 新增软件回归：第 8 层空旋钮可以配置并变成 `0x0048`；其他层空旋钮和第 8 层未知值必须失败。`Air75CoreSelfTest --software-only` 全部通过，Universal App 完整编译通过。
-- 0.14.2 (56) Universal Development App 与 DMG 已构建；签名 designated requirement、双架构、Bundle 资源、DMG CRC/只读校验通过。SHA-256：`9e5cf34158d0259521778292e23330902f9cd11c2c1fc506d898744703428ed6`。
+- Added **Settings → General → Interface Language**, with immediate and
+  persistent Chinese/English switching. A fresh install chooses a default
+  from the macOS preferred language.
+- Sidebar, first-run setup, overview, keys, lighting, settings, menu bar, and
+  runtime messages use the selected language. The device-layer placeholder
+  for supported NuPhy keyboards is localized too, so English mode does not
+  leak an untranslated device message.
+- HID, F13-F24, rotary-knob, `0xEE` session, D6/D8 lighting, Codex state, and
+  permission behavior were not changed. `Air75CoreSelfTest --software-only`
+  and the Universal app build passed.
+- Removed regenerable `.build`, old `dist`, and `.DS_Store` content while
+  retaining source, protocol docs, release scripts, and user hardware backups.
 
-## 0.14.1：橙色确认灯误判修复
+## 0.14.2: Air75 V3 eighth-layer empty-knob compatibility
 
-- Codex 辅助功能扫描现在只读取当前焦点窗口；`AXVisibleChildren` 明确为空时视为隐藏，不再遍历 Electron 保留的已关闭卡片和离屏窗口。
-- 单个“安装 / 允许 / 批准”按钮不再足以点亮橙灯。只有同一个可见控件组同时出现权限类肯定动作与拒绝动作，才判定为正在等待用户确认；普通“确认 / 取消”界面不会误触发。
-- rollout 状态解析改为只接受明确的 `request_user_input`、approval request 或 permission request 事件；带 `approval` 字样的普通元数据不再误判，工具输出和已完成/拒绝的确认结果会立即清除等待状态。
-- 新增中文、英文、隐藏卡片、单按钮、普通确认框、命名工具输出与无关 approval 元数据回归检查。`Air75CoreSelfTest --software-only` 全部通过，Universal App 完整编译通过。
-- 本机已安装 `0.14.1 (55)` 并冷启动验证：Air75 V3 识别正常、`LightingAvailable=1`，无确认卡片时 `CodexVisibleConfirmationWaiting=0`，延时复查没有重新变橙。
-- 本地 Development DMG：`dist/NAgentBridge-0.14.1-Development.dmg`；CRC 有效，SHA-256：`83edbae8f6b88c101ab1f976314a0b4c26dc7ccc70f21d5a8aff8f9edb239fa3`。固定自签名证书未加入系统信任链，因此严格 `codesign --verify` 返回 `CSSMERR_TP_NOT_TRUSTED`；包内容、指定要求与双架构均正常。
-- 源码已推送到公开仓库，`v0.14.1-development` Pre-release 已上传 Universal DMG 与 GitHub 自动生成的源码压缩包；0.14.0 保留且未覆盖。
+- Identified why some computers stopped before writing F13-F24: official Air75
+  V3 firmware 1.0.16.6 can leave layer-8 knob press position p60 unassigned
+  as `0x0000`, which the strict 0.14.1 allow-list correctly rejected.
+- Added only this one confirmed layer-8/p60 empty value and normalize it to
+  `0x0048` when creating the bridge profile. Empty values in layers 1-7,
+  other positions, and unknown values remain rejected. Full 1,568-byte
+  backup, ACK, byte-for-byte readback, and failure recovery remain strict.
+- Added software regression checks for the accepted exception and rejected
+  variants. `Air75CoreSelfTest --software-only` and the full Universal app
+  compile passed.
+- Built the 0.14.2 (56) Universal Development App and DMG. Signing
+  designated requirement, dual architecture, bundle resources, and DMG
+  CRC/read-only checks passed. SHA-256:
+  `9e5cf34158d0259521778292e23330902f9cd11c2c1fc506d898744703428ed6`.
 
-## 0.14.0：Air75 V3 官方固件 1.0.16.6 专版
+## 0.14.1: false orange confirmation-light fix
 
-- 产品范围已收口为 NuPhy Air75 V3 ANSI（USB PID `0x1028`、U1 接收器 PID `0x2620`）。其他键盘 Profile、驱动、灯位表、测试和说明已删除；未知型号不会进入 Vendor HID 写入路径。
-- 定位官方 1.0.16.6 更新后“USB-C 待响应”的根因：S4 事务需要先发 `0xEE SetSecretKey`，会话密钥为挑战数据第 20 字节；1.0.16.6 回复保留明文路由头但用会话密钥加密 payload，旧固件则可能同时加密路由头和 payload。统一 codec 已兼容两种格式，每个逻辑事务都重新握手，避免 NuPhyIO 或设备重连后沿用失效密钥。
-- D5/D6 灯光控制只写 macOS handle 0。官方固件会规范化 Windows handle 1 的保留字段，应用仍会读取并备份它，但不再把这种固件行为误判为写入失败或改写用户的 Windows 配置。
-- D8 单键状态灯改为“写入前读取原色 → 写入 → D2 精确回读 → 失败自动恢复”。F1–F6 默认索引为 1–6；旧版异常 Tab 灯位会被清理，用户主动把 Agent 分配到其他已知实体键时灯光仍跟随真实灯位。
-- Air75 V3 完整键位安装继续使用 1568-byte B2 回读；配置时把物理 F1–F12 安全改为 F13–F24，并保留完整原始备份。固件升级恢复默认键位后，应用会要求 USB-C 重新配置，不会只相信本机旧记录。
-- 当前连接的 Air75 V3 1.0.16.6 已完成实体保护验证：A1 固件读取、D5 双 handle 备份、D6 no-op/临时修改/精确恢复、D2/D8 F1 单灯 no-op/临时修改/精确恢复、B2 1568-byte 全表回读与 F13–F24 Profile 检查全部通过。
-- 实机备份保存在 `~/Library/Application Support/Air75AgentBridge/Backups/`，项目清理不会触碰该目录。
+- Accessibility scanning now reads only the focused window. An explicitly
+  empty `AXVisibleChildren` value is treated as hidden, so closed or
+  off-screen Electron cards are not traversed.
+- A single **Install / Allow / Approve** button no longer turns on the orange
+  light. A visible control group must contain both a permission-style
+  affirmative action and a rejection action; ordinary **Confirm / Cancel** UI
+  does not trigger the waiting state.
+- Rollout parsing accepts only explicit `request_user_input`, approval, or
+  permission-request events. Ordinary metadata containing `approval`, tool
+  output, and completed/rejected results clear the waiting state.
+- Added Chinese, English, hidden-card, single-button, ordinary-confirmation,
+  named-tool-output, and unrelated-approval-metadata regression checks.
+  `Air75CoreSelfTest --software-only` and the Universal app build passed.
+- A locally installed 0.14.1 (55) cold-start check recorded normal Air75 V3
+  recognition, `LightingAvailable=1`, and
+  `CodexVisibleConfirmationWaiting=0` without a confirmation card.
+- The local development DMG was
+  `dist/NAgentBridge-0.14.1-Development.dmg`; CRC passed. The fixed
+  self-signed certificate was not trusted by the system, so strict
+  `codesign --verify` returned `CSSMERR_TP_NOT_TRUSTED`; bundle contents,
+  designated requirement, and both architectures were normal.
+- Source was pushed to the public repository and the
+  `v0.14.1-development` pre-release was uploaded with its Universal DMG and
+  GitHub-generated source archive. The 0.14.0 release was retained.
 
-## 发行验证
+## 0.14.0: Air75 V3 official firmware 1.0.16.6 baseline
 
-- Universal（arm64 + x86_64）固定签名 App 构建通过，版本 `0.14.0 (54)`，designated requirement 保持 bundle ID `com.nagentbridge.mac` 与固定证书指纹。
-- 新 App 已安装；首次启动和完整退出后的第二次冷启动都在约四秒内得到 `LightingAvailable=1`、`LightingConnection=usbCable`、`HIDManagerOpenResult=0`，输入监控、辅助功能和连续 F13–F24 映射保持有效。
-- Development DMG CRC、只读挂载、签名、Air75V3 Bundle 资源与内容结构全部通过。SHA-256：`477a34f1d9a411bd91f6f25aa27d4382aba8bdc0bd986d1f6538744d8a911e47`。
-- 本机只有 Command Line Tools，缺少完整 Xcode 的 XCTest 平台，因此 `swift test` 明确返回 `XCTest not available`；不依赖 XCTest 的发行版 `Air75CoreSelfTest --software-only` 已全部通过。
-- GitHub 源码提交与新的 `v0.14.0-development` Release 待发布；旧 Release 不覆盖。
+- Product scope was narrowed to the NuPhy Air75 V3 ANSI (`0x1028` USB PID,
+  `0x2620` U1 receiver PID). Other keyboard profiles, drivers, LED maps,
+  tests, and unverified entry points were removed. Unknown models never enter
+  the vendor-HID write path.
+- The post-update **USB-C waiting** root cause was identified: S4
+  transactions require `0xEE SetSecretKey`; the session key is challenge byte
+  20. Firmware 1.0.16.6 keeps the response route header plain while
+  encrypting the payload, while older firmware may encrypt both. The codec
+  supports both formats and performs a fresh handshake for every logical
+  transaction.
+- D5/D6 lighting control writes only macOS handle 0. The app still reads and
+  backs up both handles but does not treat firmware normalization of Windows
+  handle 1 as a write failure or rewrite the Windows profile.
+- D8 signal lights use **read original → write → D2 exact readback → recover
+  on failure**. F1-F6 default to indexes 1-6; a stale Tab index is cleared,
+  while user-assigned known physical keys continue to follow their real map.
+- Full keymap installation continues to use a 1,568-byte B2 readback. The
+  app safely changes physical F1-F12 to F13-F24 and retains the complete
+  original backup. If a firmware update restores native layers, the app asks
+  for USB-C reconfiguration instead of trusting an old local record.
+- Upstream recorded physical protection checks on Air75 V3 1.0.16.6:
+  A1 firmware read, D5 dual-handle backup, D6 no-op/temporary change/exact
+  restore, D2/D8 F1 no-op/temporary change/exact restore, full B2 keymap
+  readback, and F13-F24 profile checks.
+- Physical backups are stored at
+  `~/Library/Application Support/Air75AgentBridge/Backups/`; project cleanup
+  does not touch that directory.
 
-## 验证命令
+## Release verification recorded upstream
 
-```bash
+- Universal (arm64 + x86_64) fixed-signing app build passed for version
+  `0.14.0 (54)`. The designated requirement retained bundle ID
+  `com.nagentbridge.mac` and the fixed certificate fingerprint.
+- First launch and the second cold launch after a full exit recorded
+  `LightingAvailable=1`, `LightingConnection=usbCable`, and
+  `HIDManagerOpenResult=0` in about four seconds. Input Monitoring,
+  Accessibility, and continuous F13-F24 mapping remained effective.
+- Development DMG CRC, read-only mount, signing, Air75V3 bundle resources,
+  and content structure passed. SHA-256:
+  `477a34f1d9a411bd91f6f25aa27d4382aba8bdc0bd986d1f6538744d8a911e47`.
+- The source machine had only Command Line Tools and no XCTest platform, so
+  `swift test` returned `XCTest not available`. The standalone
+  `Air75CoreSelfTest --software-only` release check passed.
+- The GitHub source commit and new `v0.14.0-development` release were still
+  pending publication at that historical checkpoint; the older release was
+  not overwritten.
+
+## Verification commands
+
+```sh
 swift build --disable-sandbox --product Air75CoreSelfTest
 .build/debug/Air75CoreSelfTest --software-only
 .build/release/Air75ProtocolProbe --hardware-validate

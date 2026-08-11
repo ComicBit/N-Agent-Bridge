@@ -1,7 +1,19 @@
 # Codex Integration
 
-优先级为：当前公开 SDK（若出现稳定 Swift/HTTP surface）→稳定 CLI→app-server→自有客户端。本机事实：Codex CLI 0.144.6 已登录 ChatGPT；`codex exec --json` 稳定但非交互审批会失败关闭，不能完成 Approve/Decline 体验；app-server V2 暴露真实 thread/turn/approval 状态，但 CLI 标记 experimental。
+The preferred integration order is: a stable public SDK (if a stable Swift or
+HTTP surface appears), then the stable CLI, then app-server, then a custom
+client. The upstream workstation record had Codex CLI 0.144.6 logged into
+ChatGPT. `codex exec --json` was stable, but non-interactive approvals failed
+closed and could not provide an Approve/Decline experience. App-server V2
+exposed real thread, turn, and approval state, but the CLI labeled it
+experimental.
 
-`CodexAppServerBackend` 启动官方 CLI 的 stdio app-server，发送 initialize、thread/start、turn/start、turn/interrupt，并把 command/file/permissions approval request 暂存到 UI。只有用户按 Approve/Decline 才返回 accept/decline。默认 sandbox 为 workspace-write、approvalPolicy 为 on-request、reviewer 为 user。
+`CodexAppServerBackend` starts the official CLI stdio app-server and sends
+`initialize`, `thread/start`, `turn/start`, and `turn/interrupt`. It holds
+command, file, and permissions approval requests for the UI. Only an explicit
+user Approve or Decline returns `accept` or `decline`. Defaults are
+`workspace-write` sandboxing, `on-request` approval policy, and the user
+reviewer.
 
-不使用鼠标坐标或截图识别控制 Codex App。
+The integration does not control Codex with mouse coordinates or screenshot
+recognition.

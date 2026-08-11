@@ -271,9 +271,9 @@ public struct KeyBinding: Identifiable, Codable, Hashable, Sendable {
     public var usagePage: Int
     public var usage: Int
     public var action: BridgeAction
-    /// Firmware signal-light index for this physical key. It is deliberately
-    /// stored with the binding so moving an Agent action also moves its light.
-    /// Unknown models/locations remain nil until a verified layout is present.
+    /// Firmware RGB read index for this physical key. It is deliberately
+    /// stored with the binding so a future verified per-key writer can follow
+    /// the physical location. It does not authorize a write.
     public var signalLightIndex: Int?
 
     public init(usagePage: Int, usage: Int, action: BridgeAction, signalLightIndex: Int? = nil) {
@@ -692,7 +692,7 @@ public struct KeyboardHardwareCapabilities: Codable, Equatable, Sendable {
     public var hasKnob: Bool
     public var hasSidelight: Bool
     public var supportsWirelessConfiguration: Bool
-    /// Identifies a verified physical-key to D8 signal-light layout.
+    /// Identifies an ANSI physical-key to per-key RGB read layout.
     public var signalLightLayoutID: String?
 
     public init(keymapDriverID: String? = nil, lightingDriverID: String? = nil,

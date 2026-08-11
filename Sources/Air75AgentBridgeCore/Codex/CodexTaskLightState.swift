@@ -291,7 +291,8 @@ public enum CodexRolloutStatusParser {
                 continue
             }
 
-            // 用户主动停止（turn_aborted）不是故障，回到空闲而不是亮红灯。
+            // A user-initiated stop (turn_aborted) is not a failure; return to
+            // idle instead of showing a red light.
             if envelopeType == "event_msg", payloadType == "turn_aborted" {
                 state = .idle
                 eventDate = parseDate(timestampValue)
