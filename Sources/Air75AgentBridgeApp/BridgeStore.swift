@@ -24,6 +24,8 @@ final class BridgeStore: ObservableObject {
     @Published var dedicatedEventSuppressionActive = false
     @Published var showOnboarding = true
     @Published var learningBindingIndex: Int?
+    @Published var previewBindingIndex: Int?
+    @Published var previewTaskLightState: CodexTaskLightState?
     @Published var lightingStates: [Air75LightingState] = []
     @Published var lightingFirmware = "未读取"
     @Published var lightingMessage = "请用 USB-C 连接后检测" {
@@ -92,9 +94,7 @@ final class BridgeStore: ObservableObject {
     init() {
         let loaded = configurationStore.load()
         configuration = loaded
-        hardwareProfileMessage = loaded.hasAnyInstalledHardwareProfile
-            ? "已配置键盘的专用层均已在实机完整回读确认；物理 F1–F12 与推理控制可随蓝牙使用"
-            : "尚未写入键盘专用层"
+        hardwareProfileMessage = "软件按键分配模式；键盘键位表保持原样"
         showOnboarding = !loaded.hasCompletedOnboarding
         let registry = DeviceProfileRegistry.loadBundled()
         profileRegistry = registry
@@ -141,8 +141,6 @@ final class BridgeStore: ObservableObject {
                     self.lastMessage = "等待受支持的 NuPhy 键盘连接"
                 }
                 self.publishDeviceDiagnostics()
-                self.verifyRecordedHardwareProfileIfNeeded()
-
                 // The U1 receiver is physically USB, but it is a distinct
                 // 2.4G lighting path. Re-probe whenever the active path
                 // changes so stale wired state cannot keep wireless writes
@@ -279,10 +277,7 @@ final class BridgeStore: ObservableObject {
     }
 
     var currentHardwareProfileNeedsInstallation: Bool {
-        guard let currentProfile = profile(for: currentDevice) else { return false }
-        return KeyboardDriverRegistry.keymapDriver(for: currentProfile) != nil
-            && (!configuration.hasInstalledHardwareProfile(for: currentProfile.profileID)
-                || hardwareProfileVerificationFailures.contains(currentProfile.profileID))
+        false
     }
 
     var currentModelName: String {
@@ -382,6 +377,33 @@ final class BridgeStore: ObservableObject {
     }
 
     func oneClickEnable() {
+        guard !hardwareProfileBusy else { return }
+        guard let device = currentDevice else {
+            lastMessage = "请先连接受支持的 NuPhy 键盘"
+            return
+        }
+        guard let profileID = device.profileID else {
+            lastMessage = "无法识别当前键盘型号"
+            return
+        }
+        let originalBindings = BridgeConfiguration.bindingsForOriginalHardwareProfile(
+            configuration.bindings(for: profileID)
+        )
+        configuration.setHardwareProfileState(nil, for: profileID)
+        configuration.setBindings(originalBindings, for: profileID)
+        configuration.mappingMode = .runtime
+        configuration.enabled = true
+        configuration.codexModeEnabled = true
+        configuration.mappingPausedByUser = false
+        persistConfiguration()
+        if !codexDesktopKeybindingsInstalled { installCodexDesktopBindings() }
+        hardwareProfileMessage = "软件按键分配已启用；键盘键位表未修改"
+        lastMessage = hardwareProfileMessage
+        showOverlay("键盘控制已启用", detail: "只拦截你选择的实体按键")
+    }
+
+    #if false
+    private func legacyOneClickEnableThatWritesKeymap() {
         guard !hardwareProfileBusy else { return }
         // D5/D6 and the keymap controller share the same vendor HID channel.
         // If a connection refresh was already in flight, wait for it instead
@@ -557,6 +579,8 @@ final class BridgeStore: ObservableObject {
         }
     }
 
+    #endif
+
     func completeOnboarding() {
         configuration.hasCompletedOnboarding = true
         showOnboarding = false
@@ -565,21 +589,15 @@ final class BridgeStore: ObservableObject {
 
     func disable() {
         guard !hardwareProfileBusy else { return }
-        guard installedHardwareProfileIsCurrent else {
-            finishSoftwareDisable(message: "Codex 控制已停止；键盘保持普通行为")
-            return
-        }
-        guard devices.contains(where: {
-            $0.isRecognized && hasDirectUSBConfigurationInterface($0)
-        }) else {
-            lastMessage = "请保持 USB-C 连接并再次点停止；恢复完成后再拔线"
-            showOverlay("暂未停止", detail: "需要先恢复键盘原生 F 区，完成后才能安全拔线")
-            return
-        }
-        restoreOriginalConfiguration()
+        finishSoftwareDisable(message: "Codex 控制已停止；键盘键位始终保持原样")
     }
 
     func restoreOriginalConfiguration() {
+        finishSoftwareDisable(message: "Codex 控制已停止；没有键盘键位需要恢复")
+    }
+
+    #if false
+    private func legacyRestoreOriginalConfigurationThatWritesKeymap() {
         guard !hardwareProfileBusy else { return }
         guard let currentProfileID = currentDevice?.profileID,
               let installedState = configuration.hardwareProfileState(for: currentProfileID),
@@ -631,6 +649,7 @@ final class BridgeStore: ObservableObject {
             hardwareProfileBusy = false
         }
     }
+    #endif
 
     private func finishSoftwareDisable(message: String) {
         configuration.enabled = false
@@ -1007,7 +1026,6 @@ final class BridgeStore: ObservableObject {
         activeDeviceID = device.id
         syncActiveInputConfiguration()
         publishDeviceDiagnostics()
-        verifyRecordedHardwareProfileIfNeeded()
     }
 
     private func publishDeviceDiagnostics() {
@@ -1304,6 +1322,44 @@ final class BridgeStore: ObservableObject {
         if lightingAvailable { syncAgentLighting() }
     }
 
+    var visibleKeyColorHexBySignalIndex: [Int: String] {
+        var result: [Int: String] = [:]
+        let agentActions: [BridgeAction] = [.agent1, .agent2, .agent3, .agent4, .agent5, .agent6]
+        for (index, action) in agentActions.enumerated() {
+            guard let lightIndex = activeKeyBindings.first(where: { $0.action == action })?.signalLightIndex else {
+                continue
+            }
+            let state: CodexTaskLightState
+            if previewBindingIndex == index, let previewTaskLightState {
+                state = previewTaskLightState
+            } else {
+                state = codexTasks.indices.contains(index) ? codexTasks[index].state : .idle
+            }
+            result[lightIndex] = taskLightColorHex(for: state)
+        }
+        return result
+    }
+
+    func previewTaskLight(_ state: CodexTaskLightState, bindingIndex: Int) {
+        guard activeKeyBindings.indices.contains(bindingIndex) else { return }
+        previewBindingIndex = bindingIndex
+        previewTaskLightState = state
+        configuration.agentLightingEnabled = true
+        persistConfiguration()
+        lastAgentSignalLights = nil
+        syncAgentLighting()
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard let self,
+                  self.previewBindingIndex == bindingIndex,
+                  self.previewTaskLightState == state else { return }
+            self.previewBindingIndex = nil
+            self.previewTaskLightState = nil
+            self.lastAgentSignalLights = nil
+            self.syncAgentLighting()
+        }
+    }
+
     private func restoreUserSignalLights() {
         guard signalLightingSupported else {
             lightingMessage = "This keyboard profile does not support verified per-key lighting restore."
@@ -1451,7 +1507,8 @@ final class BridgeStore: ObservableObject {
     }
 
     private func syncAgentLighting() {
-        guard configuration.agentLightingEnabled == true, lightingAvailable,
+        guard (configuration.enabled || previewTaskLightState != nil),
+              configuration.agentLightingEnabled == true, lightingAvailable,
               signalLightingSupported, !lightingBusy, !hardwareProfileBusy else { return }
         if configuration.sidelightRestoredAfterSignalLights != true {
             restoreLegacyAgentSidelight()
@@ -1518,9 +1575,11 @@ final class BridgeStore: ObservableObject {
                   (0...255).contains(value) else { continue }
             let index = UInt8(value)
             let snapshot = codexTasks.indices.contains(taskIndex) ? codexTasks[taskIndex] : .unassigned
-            let color = snapshot.threadID == nil
-                ? off
-                : (Air75RGBColor(hex: taskLightColorHex(for: snapshot.state)) ?? off)
+            let previewState = previewBindingIndex == taskIndex ? previewTaskLightState : nil
+            let color = previewState.map { Air75RGBColor(hex: taskLightColorHex(for: $0)) ?? off }
+                ?? (snapshot.threadID == nil
+                    ? off
+                    : (Air75RGBColor(hex: taskLightColorHex(for: snapshot.state)) ?? off))
             desiredByIndex[index] = Air75SignalLight(index: index, color: color)
         }
         managedSignalLightIndices.formUnion(activeIndices)

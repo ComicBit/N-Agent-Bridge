@@ -160,6 +160,11 @@ struct OnboardingView: View {
     }
 
     var body: some View {
+        KeyboardSetupWizardView()
+            .environmentObject(store)
+    }
+
+    private var legacyBody: some View {
         VStack(spacing: 0) {
             VStack(spacing: 16) {
                 ProductLogo(size: 92, cornerRadius: 24)
@@ -528,6 +533,7 @@ struct ControlsView: View {
                         bindings: store.activeKeyBindings,
                         learningBindingIndex: store.learningBindingIndex,
                         hardwareProfileInstalled: store.installedHardwareProfileIsCurrent,
+                        colorsBySignalLightIndex: store.visibleKeyColorHexBySignalIndex,
                         actionTitle: { localizedBridgeAction($0, language) },
                         assign: { index, usage in store.assignBinding(index, usage: usage) }
                     )
@@ -1498,7 +1504,7 @@ private struct InlineNotice: View {
     }
 }
 
-private enum AppPalette {
+enum AppPalette {
     static let pageBackground = Color(nsColor: .windowBackgroundColor)
     static let card = Color(nsColor: .controlBackgroundColor)
     static let softFill = Color.primary.opacity(0.045)
@@ -1564,7 +1570,7 @@ private func localizedAgentSourceDetail(_ mode: CodexAgentSourceMode, _ language
     }
 }
 
-private func localizedBridgeAction(_ action: BridgeAction, _ language: InterfaceLanguage) -> String {
+func localizedBridgeAction(_ action: BridgeAction, _ language: InterfaceLanguage) -> String {
     let english: String
     switch action {
     case .agent1: english = "Codex Task 1"
@@ -1665,6 +1671,6 @@ private func localizedCapabilitySummary(_ summary: String, _ language: Interface
     return "Safe software mode · lighting pending hardware validation"
 }
 
-private func localizedModelName(_ name: String, _ language: InterfaceLanguage) -> String {
+func localizedModelName(_ name: String, _ language: InterfaceLanguage) -> String {
     name == "支持的 NuPhy 键盘" ? language.text(name, "Supported NuPhy Keyboard") : name
 }

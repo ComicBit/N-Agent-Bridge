@@ -17,6 +17,7 @@ struct Air75KeyboardLayoutView: View {
     let bindings: [KeyBinding]
     let learningBindingIndex: Int?
     let hardwareProfileInstalled: Bool
+    let colorsBySignalLightIndex: [Int: String]
     let actionTitle: (BridgeAction) -> String
     let assign: (Int, Int) -> Void
 
@@ -77,6 +78,9 @@ struct Air75KeyboardLayoutView: View {
             })
         }
         let isTarget = assignment?.offset == learningBindingIndex
+        let statusColor = assignment?.element.signalLightIndex
+            .flatMap { colorsBySignalLightIndex[$0] }
+            .flatMap(swiftUIColor)
         Button {
             guard let learningBindingIndex, let usage = key.usage else { return }
             assign(learningBindingIndex, usage)
@@ -97,7 +101,8 @@ struct Air75KeyboardLayoutView: View {
         .buttonStyle(.plain)
         .frame(width: 42 * key.width)
         .background(
-            assignment == nil ? Color.primary.opacity(0.045) : Color.accentColor.opacity(isTarget ? 0.28 : 0.13),
+            statusColor?.opacity(0.42)
+                ?? (assignment == nil ? Color.primary.opacity(0.045) : Color.accentColor.opacity(isTarget ? 0.28 : 0.13)),
             in: RoundedRectangle(cornerRadius: 7)
         )
         .overlay(
@@ -109,5 +114,14 @@ struct Air75KeyboardLayoutView: View {
             "\(key.label), assigned to \(actionTitle($0.element.action))"
         } ?? "\(key.label), unassigned")
         .accessibilityHint(learningBindingIndex == nil ? "Choose Change on an action first" : "Assign selected action to this key")
+    }
+
+    private func swiftUIColor(hex: String) -> Color? {
+        guard let color = Air75RGBColor(hex: hex) else { return nil }
+        return Color(
+            red: Double(color.red) / 255,
+            green: Double(color.green) / 255,
+            blue: Double(color.blue) / 255
+        )
     }
 }
