@@ -67,7 +67,7 @@ struct KeyboardSetupWizardView: View {
         .frame(width: 960, height: 720)
         .background(AppPalette.pageBackground)
         .onAppear {
-            store.wizardHardwarePreviewEnabled = false
+            store.wizardHardwarePreviewEnabled = store.configuration.agentLightingEnabled == true
         }
         .onChange(of: store.learningBindingIndex) { next in
             if let next { selectedBinding = next }
@@ -164,8 +164,20 @@ struct KeyboardSetupWizardView: View {
             ))
             .foregroundStyle(.secondary)
 
-            Label(language.text("屏幕预览不会修改键盘的原有灯效", "On-screen preview leaves the keyboard's normal lighting untouched"), systemImage: "checkmark.shield")
-                .foregroundStyle(.secondary)
+            Toggle(isOn: Binding(
+                get: { store.wizardHardwarePreviewEnabled },
+                set: { enabled in
+                    store.wizardHardwarePreviewEnabled = enabled
+                    store.setAgentLightingEnabled(enabled)
+                }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(language.text("同步到实体键盘", "Mirror previews to the keyboard"))
+                    Text(language.text("使用指示灯模式；退出应用后恢复原动画", "Uses Signal Indicator mode; quitting restores the original animation"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             Picker(language.text("动作", "Action"), selection: $selectedBinding) {
                 ForEach(Array(store.activeKeyBindings.enumerated()), id: \.offset) { index, binding in

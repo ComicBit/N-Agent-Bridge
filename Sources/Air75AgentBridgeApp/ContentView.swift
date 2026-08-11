@@ -397,6 +397,7 @@ struct OverviewView: View {
                         }
                         .padding(.vertical, 6)
                         SixTaskStatusRow(tasks: store.codexTasks, palette: store.configuration.resolvedTaskLightPalette,
+                                         effects: store.configuration.resolvedTaskLightEffects,
                                          keyLabels: store.agentKeyLabels)
                             .padding(.top, 12)
                         HStack(spacing: 7) {
@@ -915,10 +916,18 @@ struct LightingView: View {
             PremiumCard {
                 VStack(alignment: .leading, spacing: 20) {
                     HStack(alignment: .top) {
-                        CardHeading(icon: "bolt.horizontal.circle", title: language.text("Codex 任务状态", "Codex task status"), subtitle: language.text("屏幕预览已启用；键盘逐键写入等待实机验证", "On-screen effects are available; physical per-key writes await hardware verification"))
+                        CardHeading(icon: "bolt.horizontal.circle", title: language.text("Codex 任务状态灯", "Codex task status lights"), subtitle: language.text("逐键 RGB 已验证；不会改变普通侧灯", "Verified per-key RGB; standard side lights are not changed"))
                         Spacer()
+                        Toggle("", isOn: Binding(
+                            get: { store.configuration.agentLightingEnabled == true && store.signalLightingSupported },
+                            set: { store.setAgentLightingEnabled($0) }
+                        ))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .disabled(!store.lightingAvailable || store.lightingBusy || !store.signalLightingSupported)
                     }
 
+                    if store.configuration.agentLightingEnabled == true && store.signalLightingSupported {
                         HStack(spacing: 18) {
                             StatusEffectDot(
                                 hex: store.taskLightColorHex(for: store.codexTopTaskLightState),
@@ -934,6 +943,7 @@ struct LightingView: View {
                         }
 
                         SixTaskStatusRow(tasks: store.codexTasks, palette: store.configuration.resolvedTaskLightPalette,
+                                         effects: store.configuration.resolvedTaskLightEffects,
                                          keyLabels: store.agentKeyLabels)
 
                         Divider()
@@ -946,7 +956,7 @@ struct LightingView: View {
                                 Button(language.text("恢复默认", "Restore Defaults")) { store.resetTaskLightColors() }
                                     .buttonStyle(.borderless)
                             }
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 165), spacing: 10)], spacing: 10) {
+                            VStack(spacing: 8) {
                                 ForEach(CodexTaskLightState.allCases, id: \.self) { state in
                                     TaskLightColorEditor(
                                         state: state,
@@ -957,12 +967,13 @@ struct LightingView: View {
                                     )
                                 }
                             }
-                            Text(language.text("每个状态的颜色、动画和速度都保存在本机。在逐键写入获得验证前，这些效果只在应用内预览，不会中断键盘原有动画。", "Each status keeps its own color, animation, and speed. Until per-key writes are verified, effects preview in the app and never interrupt the keyboard's normal animation."))
+                            Text(language.text("每个状态的颜色、动画和速度都保存在本机；颜色会通过当前 USB-C 或 U1 通道应用到 Agent 实体键。", "Each status keeps its own color, animation, and speed; colors are applied to Agent keys over the active USB-C or U1 route."))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
+                    }
 
-                    Divider()
+                    if store.configuration.agentLightingEnabled == true && store.signalLightingSupported { Divider() }
 
                     VStack(alignment: .leading, spacing: 16) {
                             HStack {
@@ -1065,6 +1076,7 @@ struct SixTaskStatusRow: View {
     @Environment(\.interfaceLanguage) private var language
     let tasks: [CodexTaskLightSnapshot]
     let palette: CodexTaskLightPalette
+    let effects: CodexTaskLightEffects
     let keyLabels: [String]
 
     var body: some View {
@@ -1073,17 +1085,16 @@ struct SixTaskStatusRow: View {
                 ForEach(0..<CodexDesktopStatusObserver.maximumTaskCount, id: \.self) { index in
                     let snapshot = index < tasks.count && tasks[index].threadID != nil ? tasks[index] : nil
                     VStack(spacing: 5) {
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(snapshot.map { Color(hex: palette.colorHex(for: $0.state)) } ?? Color.primary.opacity(0.08))
-                            .frame(height: 24)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .stroke(Color.primary.opacity(0.12))
+                        if let snapshot {
+                            StatusEffectBar(
+                                hex: palette.colorHex(for: snapshot.state),
+                                effect: effects.effect(for: snapshot.state)
                             )
-                            .shadow(
-                                color: snapshot.map { Color(hex: palette.colorHex(for: $0.state)).opacity(0.35) } ?? .clear,
-                                radius: 5
-                            )
+                        } else {
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(Color.primary.opacity(0.08))
+                                .frame(height: 24)
+                        }
                         Text(index < keyLabels.count ? keyLabels[index] : "—")
                             .font(.caption2.weight(.medium))
                             .foregroundStyle(.secondary)
@@ -1113,18 +1124,34 @@ private struct TaskLightColorEditor: View {
         "#FF2D55", "#FF453A", "#FF9F0A", "#FFD60A", "#30D158", "#64D2FF", "#00C7BE"
     ]
 
+    private var speedValue: Double {
+        switch effect.speed {
+        case .slow: return 0
+        case .normal: return 1
+        case .fast: return 2
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        HStack(spacing: 16) {
             HStack(spacing: 10) {
                 Button { showingColorEditor.toggle() } label: {
-                    StatusEffectDot(hex: hex, effect: effect, size: 26)
+                    StatusEffectDot(hex: hex, effect: effect, size: 28)
                         .overlay(Circle().stroke(Color.primary.opacity(0.18)))
                 }
                 .buttonStyle(.plain)
                 .popover(isPresented: $showingColorEditor, arrowEdge: .bottom) {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text(language.text("选择状态颜色", "Choose status color"))
-                            .font(.headline)
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(shortLightName(state, language)).font(.headline)
+                                Text(language.text("状态灯颜色", "Status light color"))
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            StatusEffectDot(hex: hex, effect: effect, size: 34)
+                        }
+                        StatusEffectBar(hex: hex, effect: effect).frame(height: 34)
                         LazyVGrid(columns: Array(repeating: GridItem(.fixed(32)), count: 6), spacing: 10) {
                             ForEach(swatches, id: \.self) { swatch in
                                 Button { onChange(swatch) } label: {
@@ -1147,42 +1174,95 @@ private struct TaskLightColorEditor: View {
                             }
                         }
                     }
-                    .padding(18)
-                    .frame(width: 276)
+                    .padding(20)
+                    .frame(width: 300)
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(shortLightName(state, language)).font(.caption.weight(.semibold))
                     Text(hex.uppercased()).font(.caption2.monospaced()).foregroundStyle(.secondary)
                 }
-                Spacer()
+                Spacer(minLength: 0)
             }
+            .frame(width: 145, alignment: .leading)
 
-            Picker(language.text("动画", "Animation"), selection: Binding(
-                get: { effect.animation },
-                set: { onEffectChange(CodexTaskLightEffect(animation: $0, speed: effect.speed)) }
-            )) {
-                Text(language.text("常亮", "Steady")).tag(CodexTaskLightAnimation.steady)
-                Text(language.text("呼吸", "Pulse")).tag(CodexTaskLightAnimation.pulse)
-                Text(language.text("闪烁", "Blink")).tag(CodexTaskLightAnimation.blink)
+            VStack(alignment: .leading, spacing: 5) {
+                Picker(language.text("效果", "Effect"), selection: Binding(
+                    get: { effect.animation },
+                    set: { onEffectChange(CodexTaskLightEffect(animation: $0, speed: effect.speed)) }
+                )) {
+                    Label(language.text("常亮", "Solid"), systemImage: "circle.fill").tag(CodexTaskLightAnimation.steady)
+                    Label(language.text("呼吸", "Breathe"), systemImage: "waveform.path").tag(CodexTaskLightAnimation.pulse)
+                    Label(language.text("闪烁", "Flash"), systemImage: "bolt.fill").tag(CodexTaskLightAnimation.blink)
+                }
+                .pickerStyle(.segmented)
+                Text(effectDescription)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
-            .pickerStyle(.segmented)
+            .frame(maxWidth: .infinity)
 
-            Picker(language.text("速度", "Speed"), selection: Binding(
-                get: { effect.speed },
-                set: { onEffectChange(CodexTaskLightEffect(animation: effect.animation, speed: $0)) }
-            )) {
-                Text(language.text("慢", "Slow")).tag(CodexTaskLightAnimationSpeed.slow)
-                Text(language.text("标准", "Normal")).tag(CodexTaskLightAnimationSpeed.normal)
-                Text(language.text("快", "Fast")).tag(CodexTaskLightAnimationSpeed.fast)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(language.text("速度", "Speed")).font(.caption.weight(.medium))
+                    Spacer()
+                    Text(speedName).font(.caption2).foregroundStyle(.secondary)
+                }
+                Slider(value: Binding(
+                    get: { speedValue },
+                    set: { value in
+                        let speed: CodexTaskLightAnimationSpeed = value < 0.5 ? .slow : (value < 1.5 ? .normal : .fast)
+                        onEffectChange(CodexTaskLightEffect(animation: effect.animation, speed: speed))
+                    }
+                ), in: 0...2, step: 1)
+                HStack {
+                    Text(language.text("慢", "Slow"))
+                    Spacer()
+                    Text(language.text("快", "Fast"))
+                }
+                .font(.system(size: 9))
+                .foregroundStyle(.tertiary)
             }
-            .pickerStyle(.menu)
+            .frame(width: 150)
             .disabled(effect.animation == .steady)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .background(AppPalette.softFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onAppear { draftHex = hex }
         .onChange(of: hex) { draftHex = $0 }
+    }
+
+    private var effectDescription: String {
+        switch effect.animation {
+        case .steady: return language.text("持续显示当前状态", "Always visible; best for idle states")
+        case .pulse: return language.text("柔和的明暗呼吸", "A smooth breathing glow for active work")
+        case .blink: return language.text("清晰闪烁以吸引注意", "A clear flash for states needing attention")
+        }
+    }
+
+    private var speedName: String {
+        switch effect.speed {
+        case .slow: return language.text("慢", "Slow")
+        case .normal: return language.text("标准", "Normal")
+        case .fast: return language.text("快", "Fast")
+        }
+    }
+}
+
+private struct StatusEffectBar: View {
+    let hex: String
+    let effect: CodexTaskLightEffect
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let level = statusEffectLevel(at: timeline.date, effect: effect)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color(hex: hex))
+                .opacity(level)
+                .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.primary.opacity(0.12)))
+                .shadow(color: Color(hex: hex).opacity(level * 0.38), radius: 6)
+        }
+        .frame(height: 24)
     }
 }
 
@@ -1193,21 +1273,23 @@ private struct StatusEffectDot: View {
 
     var body: some View {
         TimelineView(.animation) { timeline in
-            let phase = timeline.date.timeIntervalSinceReferenceDate
-                .truncatingRemainder(dividingBy: effect.speed.duration) / effect.speed.duration
-            let level: Double = {
-                switch effect.animation {
-                case .steady: return 1
-                case .pulse: return 0.55 + 0.45 * (0.5 - 0.5 * cos(phase * .pi * 2))
-                case .blink: return phase < 0.5 ? 1 : 0.22
-                }
-            }()
+            let level = statusEffectLevel(at: timeline.date, effect: effect)
             Circle()
                 .fill(Color(hex: hex))
                 .frame(width: size, height: size)
                 .opacity(level)
                 .shadow(color: Color(hex: hex).opacity(level * 0.55), radius: 7)
         }
+    }
+}
+
+private func statusEffectLevel(at date: Date, effect: CodexTaskLightEffect) -> Double {
+    let phase = date.timeIntervalSinceReferenceDate
+        .truncatingRemainder(dividingBy: effect.speed.duration) / effect.speed.duration
+    switch effect.animation {
+    case .steady: return 1
+    case .pulse: return 0.55 + 0.45 * (0.5 - 0.5 * cos(phase * .pi * 2))
+    case .blink: return phase < 0.5 ? 1 : 0.22
     }
 }
 

@@ -49,10 +49,9 @@ Bluetooth exposes keyboard input but no verified 64-byte S4 management
 interface, so live lighting configuration must not be advertised for
 Bluetooth.
 
-## 7. Per-key color writing needs a verified NuPhyIO capture
+## 7. Per-key status lighting needs a verified management route
 
-D2 safely reads individual key colors, but the previously assumed D8 write
-transaction is not accepted as product evidence. Per-key writes are disabled
-for USB-C and U1 until the real NuPhyIO transaction is captured, decoded, and
-passes backup, ACK, delayed readback, and restoration checks. App-only status
-animations can coexist with the keyboard's normal backlight animation.
+D2/D8 status-light management is supported only over the verified USB-C or U1
+S4 route. Each write requires a persisted original-color backup, ACK, delayed
+exact D2 readback, and recovery on failure; Bluetooth must never be presented
+as a live status-light path.

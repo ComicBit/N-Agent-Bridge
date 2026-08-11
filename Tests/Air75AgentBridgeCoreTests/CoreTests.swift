@@ -145,7 +145,7 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(Air75V3LightingController.escapeSignalLightIndex, 0)
         XCTAssertEqual(Air75V3LightingController.taskSignalLightIndices, [1, 2, 3, 4, 5, 6])
         XCTAssertEqual(SignalLightLayout.staleManagedIndices(layoutID: "nuphy.air75-v3.ansi-d8"), [30])
-        XCTAssertFalse(Air75V3LightingController().supportsPerKeyColorWrite)
+        XCTAssertTrue(Air75V3LightingController().supportsPerKeyColorWrite)
     }
 
     func testTaskLightEffectsAreIndependentAndCodable() throws {

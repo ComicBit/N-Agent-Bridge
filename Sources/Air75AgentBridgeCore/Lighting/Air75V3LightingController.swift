@@ -238,7 +238,7 @@ public final class Air75V3LightingController: @unchecked Sendable {
         self.deviceDisplayName = "Air75 V3"
         self.profileID = "nuphy.air75-v3"
         self.supportsFullLightingControl = true
-        self.supportsPerKeyColorWrite = false
+        self.supportsPerKeyColorWrite = true
         self.supportedBacklightModes = Air75BacklightMode.allCases
         self.supportedSidelightModes = Air75SidelightMode.allCases
         self.writableLightingHandles = [0]
@@ -357,11 +357,19 @@ public final class Air75V3LightingController: @unchecked Sendable {
         return indices.compactMap { lightsByIndex[$0] }
     }
 
-    /// Per-key writes are intentionally unavailable until a NuPhyIO capture
-    /// verifies the real transaction. D2 reads remain supported.
+    /// Writes at most 14 physical-key records and requires exact D2 readback.
+    /// U1 emits local duplicate/echo frames before the forwarded keyboard
+    /// response; ProtocolSession filters those frames before this method sees
+    /// the result. Signal Indicator mode can be installed through either
+    /// verified USB-C or U1 2.4G management route.
     @discardableResult
-    public func setSignalLights(_: [Air75SignalLight]) throws -> [Air75SignalLight] {
-        throw Air75LightingError.stateWritesNotVerified(deviceDisplayName)
+    public func setSignalLights(_ lights: [Air75SignalLight]) throws -> [Air75SignalLight] {
+        let states = try readStates()
+        guard states.first(where: { $0.handle == 0 })?.backlight.mode
+                == Air75BacklightMode.signalIndicator.rawValue else {
+            throw Air75LightingError.signalIndicatorModeRequired
+        }
+        return try performSignalLightWrite(lights)
     }
 
     /// Protected D8/D2 round-trip used by Air75ProtocolProbe while backlight
@@ -369,9 +377,9 @@ public final class Air75V3LightingController: @unchecked Sendable {
     @_spi(HardwareValidation)
     @discardableResult
     public func hardwareValidateSignalLights(
-        _: [Air75SignalLight]
+        _ lights: [Air75SignalLight]
     ) throws -> [Air75SignalLight] {
-        throw Air75LightingError.stateWritesNotVerified(deviceDisplayName)
+        try performSignalLightWrite(lights)
     }
 
     private func performSignalLightWrite(
