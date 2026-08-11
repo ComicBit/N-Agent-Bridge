@@ -52,6 +52,7 @@ private func printUsage() {
     Read-only commands:
       air75 list
       air75 info
+      air75 keymap snapshot
       air75 led map
       air75 led get <KEY>
 
@@ -63,6 +64,7 @@ private func printUsage() {
 
     Examples:
       air75 led get F1
+      air75 keymap snapshot
       air75 keymap restore-original
       air75 led set F1 255 0 0
       air75 led restore F1
@@ -187,12 +189,29 @@ private func run(_ arguments: [String]) throws {
     case "led":
         try runLEDCommand(Array(arguments.dropFirst()))
     case "keymap":
-        guard arguments.count == 2, arguments[1] == "restore-original" else {
+        guard arguments.count == 2 else {
             throw DeveloperCLIError.usage
         }
         let store = ConfigurationStore()
         var configuration = store.load()
         let controller = Air75V3KeymapController()
+        if arguments[1] == "snapshot" {
+            let current = try controller.readKeymap()
+            guard controller.isPlausibleKeymap(current),
+                  !controller.containsBridgeProfile(current) else {
+                throw DeveloperCLIError.verificationFailed("current keymap is not a plausible original Air75 V3 layout")
+            }
+            let url = try store.createKeymapBackup(
+                data: current,
+                note: "Read-only post-reset source-of-truth snapshot; no keyboard write was performed.",
+                profileID: profileID
+            )
+            print("KEYMAP SNAPSHOT verified bytes=\(current.count) backup=\(url.path)")
+            return
+        }
+        guard arguments[1] == "restore-original" else {
+            throw DeveloperCLIError.usage
+        }
         guard let selected = store.loadOriginalKeymapBackup(
             preferredName: configuration.hardwareProfileState(for: profileID)?.backupName
         ), let bytes = selected.backup.bytes else {

@@ -23,11 +23,11 @@ struct Air75KeyboardLayoutView: View {
     private let rows: [[Key]] = [
         [Key("Esc", usage: 0x29)]
             + (1...12).map { Key("F\($0)", usage: 0x39 + $0) }
-            + [Key("PrtSc", usage: 0x46), Key("Ins", usage: 0x49)],
+            + [Key("PrtSc", usage: 0x46), Key("Ins", usage: 0x49), Key("◉")],
         [Key("`", usage: 0x35)]
             + (1...9).map { Key("\($0)", usage: 0x1D + $0) }
             + [Key("0", usage: 0x27), Key("-", usage: 0x2D), Key("=", usage: 0x2E),
-               Key("Delete", usage: 0x2A, width: 2), Key("PgUp", usage: 0x4B)],
+               Key("Delete", usage: 0x2A, width: 2), Key("M1")],
         [Key("Tab", usage: 0x2B, width: 1.5)]
             + zip(Array("QWERTYUIOP"), [0x14, 0x1A, 0x08, 0x15, 0x17, 0x1C, 0x18, 0x0C, 0x12, 0x13]).map {
                 Key(String($0.0), usage: $0.1)
