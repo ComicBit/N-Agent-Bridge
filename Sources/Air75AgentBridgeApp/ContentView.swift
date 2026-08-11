@@ -518,6 +518,23 @@ struct ControlsView: View {
             }
 
             PremiumCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    CardHeading(
+                        icon: "keyboard",
+                        title: language.text("Air75 V3 键盘布局", "Air75 V3 keyboard layout"),
+                        subtitle: language.text("查看每个动作的实体位置；点“更改”后可直接点击键帽", "See every action in place; choose Change, then click a keycap")
+                    )
+                    Air75KeyboardLayoutView(
+                        bindings: store.activeKeyBindings,
+                        learningBindingIndex: store.learningBindingIndex,
+                        hardwareProfileInstalled: store.installedHardwareProfileIsCurrent,
+                        actionTitle: { localizedBridgeAction($0, language) },
+                        assign: { index, usage in store.assignBinding(index, usage: usage) }
+                    )
+                }
+            }
+
+            PremiumCard {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
                     ForEach(Array(store.activeKeyBindings.enumerated()), id: \.offset) { index, binding in
                         KeyActionRow(
@@ -542,6 +559,15 @@ struct ControlsView: View {
                     color: .accentColor,
                     buttonTitle: language.text("取消", "Cancel"),
                     action: store.cancelLearningBinding
+                )
+            } else if !store.inputMonitoringGranted {
+                InlineNotice(
+                    icon: "exclamationmark.triangle",
+                    title: language.text("实体按键检测需要输入监控权限", "Physical key detection needs Input Monitoring"),
+                    text: language.text("可以先在上方键盘布局中点击分配；授权后也可以直接按实体键。", "You can assign by clicking the keyboard layout above; after granting access, physical key presses work too."),
+                    color: .orange,
+                    buttonTitle: language.text("打开设置", "Open Settings"),
+                    action: store.requestInputMonitoring
                 )
             } else {
                 Text(language.text("Codex 控制开启时，自定义键会成为专用控制键，不再同时输入原字符；停止控制后会恢复原本行为。", "While Codex control is on, custom keys become dedicated controls and no longer type their original characters. Their normal behavior returns when control stops."))

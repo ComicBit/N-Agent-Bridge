@@ -55,14 +55,18 @@ private func printUsage() {
       air75 led map
       air75 led get <KEY>
 
-    Verified per-key RGB writes:
+    Verified recovery and per-key RGB writes:
+      air75 keymap restore-original
+      air75 lighting restore <BACKUP_JSON>
       air75 led set <KEY> <R> <G> <B>
       air75 led restore <KEY>
 
     Examples:
       air75 led get F1
+      air75 keymap restore-original
       air75 led set F1 255 0 0
       air75 led restore F1
+      air75 lighting restore "~/Library/Application Support/Air75AgentBridge/Backups/<file>.json"
 
     Writes use D8 with exact D2 readback and a persisted recovery color.
     Signal Indicator mode (0x15) must already be active. Bluetooth has no
@@ -182,6 +186,57 @@ private func run(_ arguments: [String]) throws {
         }
     case "led":
         try runLEDCommand(Array(arguments.dropFirst()))
+    case "keymap":
+        guard arguments.count == 2, arguments[1] == "restore-original" else {
+            throw DeveloperCLIError.usage
+        }
+        let store = ConfigurationStore()
+        var configuration = store.load()
+        let controller = Air75V3KeymapController()
+        guard let selected = store.loadOriginalKeymapBackup(
+            preferredName: configuration.hardwareProfileState(for: profileID)?.backupName
+        ), let bytes = selected.backup.bytes else {
+            throw DeveloperCLIError.verificationFailed("no plausible non-Bridge 1,568-byte original keymap backup was found")
+        }
+        let readback = try controller.restore(bytes)
+        guard readback == bytes else {
+            throw DeveloperCLIError.verificationFailed("keymap readback did not match the original backup")
+        }
+        configuration.enabled = false
+        configuration.codexModeEnabled = false
+        configuration.mappingPausedByUser = true
+        configuration.mappingMode = .unavailable
+        configuration.setBindings(
+            BridgeConfiguration.bindingsForOriginalHardwareProfile(
+                configuration.bindings(for: profileID)
+            ),
+            for: profileID
+        )
+        configuration.setHardwareProfileState(nil, for: profileID)
+        try store.save(configuration)
+        print("KEYMAP RESTORE verified bytes=\(readback.count) backup=\(selected.url.path)")
+    case "lighting":
+        guard arguments.count == 3, arguments[1] == "restore" else {
+            throw DeveloperCLIError.usage
+        }
+        let url = URL(fileURLWithPath: NSString(string: arguments[2]).expandingTildeInPath)
+        let data = try Data(contentsOf: url)
+        let backup = try JSONDecoder.iso8601.decode(HardwareLightingBackup.self, from: data)
+        guard backup.profileID == nil || backup.profileID == profileID,
+              Set(backup.states.map(\.handle)) == Set([0, 1]) else {
+            throw DeveloperCLIError.invalidBackup(url)
+        }
+        let restored = try Air75V3LightingController().restore(backup.states)
+        let expectedMac = backup.states.first(where: { $0.handle == 0 })
+        let restoredMac = restored.first(where: { $0.handle == 0 })
+        guard expectedMac == restoredMac,
+              Set(restored.map(\.handle)) == Set([0, 1]) else {
+            throw DeveloperCLIError.verificationFailed("D5 macOS handle 0 did not match the backup")
+        }
+        print("LIGHTING RESTORE verified macOS handle 0; Windows handle 1 remained read-only backup=\(url.path)")
+        for state in restored.sorted(by: { $0.handle < $1.handle }) {
+            print("d5 h\(state.handle) backlightMode=\(state.backlight.mode) sidelightMode=\(state.sidelight.mode)")
+        }
     default:
         throw DeveloperCLIError.usage
     }

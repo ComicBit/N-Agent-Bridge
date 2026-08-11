@@ -753,6 +753,23 @@ final class BridgeStore: ObservableObject {
 
     func beginLearningBinding(_ index: Int) {
         guard activeKeyBindings.indices.contains(index) else { return }
+        guard !NSWorkspace.shared.runningApplications.contains(where: {
+            $0.bundleIdentifier == "NuPhyIO2.your-app"
+        }) else {
+            learningBindingIndex = nil
+            pendingLearningEvent = nil
+            deviceManager.calibrationMode = false
+            lastMessage = "NuPhyIO 正在使用键盘接口；请退出 NuPhyIO 后再学习实体按键"
+            return
+        }
+        refreshPermissions()
+        guard inputMonitoringGranted else {
+            learningBindingIndex = nil
+            pendingLearningEvent = nil
+            deviceManager.calibrationMode = false
+            lastMessage = "实体按键检测需要输入监控权限；也可以直接在键盘布局中点击目标按键"
+            return
+        }
         learningBindingIndex = index
         pendingLearningEvent = nil
         deviceManager.calibrationMode = true
@@ -764,6 +781,32 @@ final class BridgeStore: ObservableObject {
         pendingLearningEvent = nil
         deviceManager.calibrationMode = false
         lastMessage = "已取消按键学习"
+    }
+
+    func assignBinding(_ index: Int, usagePage: Int = 0x07, usage: Int) {
+        let eventUsage = installedHardwareProfileIsCurrent && (0x3A...0x45).contains(usage)
+            ? usage + (0x68 - 0x3A) : usage
+        guard let bindings = KeyBindingAssignment.assigning(
+            bindingAt: index,
+            usagePage: usagePage,
+            usage: eventUsage,
+            in: activeKeyBindings,
+            signalLightLayoutID: currentSignalLightLayoutID
+        ) else {
+            lastMessage = "该实体键不能作为专用控制键"
+            return
+        }
+        let learnedName = bindings[index].displayName
+        let actionName = bindings[index].action.displayName
+        configuration.setBindings(bindings, for: currentDevice?.profileID)
+        learningBindingIndex = nil
+        pendingLearningEvent = nil
+        deviceManager.calibrationMode = false
+        persistConfiguration()
+        lastAgentSignalLights = nil
+        failedAgentSignalLights = nil
+        if lightingAvailable { syncAgentLighting() }
+        lastMessage = "已分配 \(learnedName) → \(actionName)"
     }
 
     func resetBindingsToPhysicalFunctionKeys() {
@@ -815,23 +858,13 @@ final class BridgeStore: ObservableObject {
                 && learnedEvent.usage == event.usage
         ) else { return true }
 
-        var bindings = activeKeyBindings
-        let previous = bindings[index]
-        if let duplicate = bindings.indices.first(where: {
-            $0 != index && bindings[$0].usagePage == learnedEvent.usagePage
-                && bindings[$0].usage == learnedEvent.usage
-        }) {
-            bindings[duplicate].usagePage = previous.usagePage
-            bindings[duplicate].usage = previous.usage
-            bindings[duplicate].signalLightIndex = previous.signalLightIndex
-        }
-        bindings[index].usagePage = learnedEvent.usagePage
-        bindings[index].usage = learnedEvent.usage
-        bindings[index].signalLightIndex = SignalLightLayout.index(
-            layoutID: currentSignalLightLayoutID,
+        guard let bindings = KeyBindingAssignment.assigning(
+            bindingAt: index,
             usagePage: learnedEvent.usagePage,
-            usage: learnedEvent.usage
-        )
+            usage: learnedEvent.usage,
+            in: activeKeyBindings,
+            signalLightLayoutID: currentSignalLightLayoutID
+        ) else { return true }
         let learnedName = bindings[index].displayName
         let actionName = bindings[index].action.displayName
         configuration.setBindings(bindings, for: currentDevice?.profileID)

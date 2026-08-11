@@ -185,6 +185,38 @@ final class CoreTests: XCTestCase {
         XCTAssertNil(SignalLightLayout.key(layoutID: "unknown", named: "F1"))
     }
 
+    func testLayoutAssignmentSwapsDuplicatePhysicalKeysAndTracksLED() throws {
+        let original = BridgeConfiguration.defaultBindings
+        let updated = try XCTUnwrap(KeyBindingAssignment.assigning(
+            bindingAt: 0,
+            usagePage: 0x07,
+            usage: 0x14,
+            in: original,
+            signalLightLayoutID: "nuphy.air75-v3.ansi-d8"
+        ))
+        XCTAssertEqual(updated[0].usage, 0x14)
+        XCTAssertEqual(updated[0].signalLightIndex, 31)
+        XCTAssertFalse(updated.dropFirst().contains { $0.usagePage == 0x07 && $0.usage == 0x14 })
+        XCTAssertNil(KeyBindingAssignment.assigning(
+            bindingAt: 0,
+            usagePage: 0x0C,
+            usage: 0xE9,
+            in: original,
+            signalLightLayoutID: "nuphy.air75-v3.ansi-d8"
+        ))
+
+        let installed = BridgeConfiguration.hardwareProfileBindings
+        let installedUpdated = try XCTUnwrap(KeyBindingAssignment.assigning(
+            bindingAt: 0,
+            usagePage: 0x07,
+            usage: 0x68,
+            in: installed,
+            signalLightLayoutID: "nuphy.air75-v3.ansi-d8"
+        ))
+        XCTAssertEqual(installedUpdated[0].usage, 0x68)
+        XCTAssertEqual(installedUpdated[0].signalLightIndex, 1)
+    }
+
     func testLegacyF13ConfigurationMigratesToPhysicalKeys() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
