@@ -20,9 +20,9 @@ the first launch. Do not disable Gatekeeper or run `spctl --master-disable`.
 ## 3. Bluetooth has no verified S4 management channel
 
 Air75 V3 Bluetooth HID can carry ordinary key input, but the current firmware
-does not expose a verified 64-byte S4 vendor channel. Keymap installation and
-D5/D6 zone management therefore require USB-C or the verified U1 2.4G route.
-Per-key RGB writing is separately blocked pending its real write transaction.
+does not expose a verified 64-byte S4 vendor channel. Keymap installation,
+D5/D6 zone management, and D2/D8 per-key RGB management therefore require
+USB-C or the verified U1 2.4G route.
 The software cannot create a BLE characteristic that the firmware does not
 expose.
 

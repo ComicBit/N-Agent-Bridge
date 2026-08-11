@@ -25,8 +25,8 @@ public struct Air75RGBColor: Codable, Equatable, Sendable {
 
 /// One per-key RGB record returned by the Air75 V3 firmware's 0xD2 command.
 /// Firmware indexes 1...6 currently correspond to the physical F1...F6
-/// positions in the ANSI read map; index 0 is Escape. The per-key write path
-/// is intentionally not implied by this read model.
+/// positions in the ANSI read map; index 0 is Escape. Writes use D8 and exact
+/// D2 readback on the verified USB-C and U1 management routes.
 public struct Air75SignalLight: Codable, Equatable, Sendable {
     public var index: UInt8
     public var color: Air75RGBColor
@@ -360,8 +360,8 @@ public final class Air75V3LightingController: @unchecked Sendable {
     /// Writes at most 14 physical-key records and requires exact D2 readback.
     /// U1 emits local duplicate/echo frames before the forwarded keyboard
     /// response; ProtocolSession filters those frames before this method sees
-    /// the result. Signal Indicator mode is installed over USB-C once and then
-    /// D8 can update keys through either USB-C or U1 2.4G.
+    /// the result. Signal Indicator mode can be installed through either
+    /// verified USB-C or U1 2.4G management route.
     @discardableResult
     public func setSignalLights(_ lights: [Air75SignalLight]) throws -> [Air75SignalLight] {
         let states = try readStates()
@@ -372,9 +372,8 @@ public final class Air75V3LightingController: @unchecked Sendable {
         return try performSignalLightWrite(lights)
     }
 
-    /// Protected D8/D2 round-trip used only by Air75ProtocolProbe. The product
-    /// API remains disabled until this succeeds on the exact target firmware
-    /// while backlight mode 0x15 (signal indicator) is active.
+    /// Protected D8/D2 round-trip used by Air75ProtocolProbe while backlight
+    /// mode 0x15 (signal indicator) is active.
     @_spi(HardwareValidation)
     @discardableResult
     public func hardwareValidateSignalLights(

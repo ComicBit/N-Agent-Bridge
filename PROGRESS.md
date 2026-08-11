@@ -30,6 +30,11 @@ not re-run by the current software-only bootstrap unless explicitly stated.
 - The next implementation slice is the platform-neutral six-key developer
   state machine described in `NEXT_STEPS.md`; the six-key workflow itself is
   intentionally not implemented yet.
+- Added the production Agent-lighting lifecycle: the app persists the complete
+  84-index D2 palette and both D5 handles before activating mode `0x15`, routes
+  D5/D6 and D2/D8 through the most recently active USB-C or U1 input path, and
+  restores the complete palette and original mode when Agent lighting is
+  disabled. Pending backups survive relaunch until restoration completes.
 
 ## 0.15.0: Bilingual interface and distribution cleanup
 

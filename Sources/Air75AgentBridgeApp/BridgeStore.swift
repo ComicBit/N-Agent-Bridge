@@ -72,6 +72,7 @@ final class BridgeStore: ObservableObject {
     private var managedSignalLightIndices = Set(Air75V3LightingController.taskSignalLightIndices)
     private var lastAgentSignalLights: [Air75SignalLight]?
     private var failedAgentSignalLights: [Air75SignalLight]?
+    private var agentSignalLightingPrepared = false
     private var lastAgentSignalWriteAt: Date?
     private var lastAgentSignalAttemptAt: Date?
     private var lastKeyboardActivityAt = Date()
@@ -155,6 +156,7 @@ final class BridgeStore: ObservableObject {
                     self.lightingAvailable = false
                     self.sleepConfiguration = nil
                     self.lastAgentSignalLights = nil
+                    self.agentSignalLightingPrepared = false
                 }
                 if detectedConnection != nil,
                    (connectionChanged || self.lightingStates.isEmpty || !self.lightingAvailable),
@@ -1128,6 +1130,7 @@ final class BridgeStore: ObservableObject {
             sleepConfiguration = nil
             lastAgentSignalLights = nil
             failedAgentSignalLights = nil
+            agentSignalLightingPrepared = false
         }
         if likelyWake {
             scheduleAgentLightingResyncAfterWake(force: true)
@@ -1270,12 +1273,7 @@ final class BridgeStore: ObservableObject {
 
     private func restoreUserSignalLights() {
         guard signalLightingSupported else {
-            lightingMessage = "Air75 V3 per-key RGB writing is not verified; no key-color restore was attempted."
-            return
-        }
-        let saved = userSignalLightsByIndex.values.sorted { $0.index < $1.index }
-        guard !saved.isEmpty else {
-            lightingMessage = "Codex 状态灯模式已关闭；键盘灯光已恢复"
+            lightingMessage = "This keyboard profile does not support verified per-key lighting restore."
             return
         }
         if lightingBusy {
@@ -1283,6 +1281,17 @@ final class BridgeStore: ObservableObject {
                 try? await Task.sleep(for: .milliseconds(250))
                 self?.restoreUserSignalLights()
             }
+            return
+        }
+        if let pending = configurationStore.loadPendingSignalLightingBackup(
+            profileID: currentLightingDriver?.profileID ?? "nuphy.air75-v3"
+        ) {
+            restoreSignalLightingBackup(pending)
+            return
+        }
+        let saved = userSignalLightsByIndex.values.sorted { $0.index < $1.index }
+        guard !saved.isEmpty else {
+            lightingMessage = "Codex 状态灯模式已关闭；键盘灯光已恢复"
             return
         }
         guard let controller = currentLightingDriver else { return }
@@ -1496,6 +1505,10 @@ final class BridgeStore: ObservableObject {
     private func syncAgentSignalLights() {
         guard configuration.agentLightingEnabled == true, lightingAvailable,
               signalLightingSupported, !lightingBusy, !hardwareProfileBusy else { return }
+        guard agentSignalLightingPrepared else {
+            prepareAgentSignalLighting()
+            return
+        }
         let desired = desiredAgentSignalLights()
         if failedAgentSignalLights != nil, failedAgentSignalLights != desired {
             agentSignalRetryCount = 0
@@ -1548,6 +1561,9 @@ final class BridgeStore: ObservableObject {
                 persistConfiguration()
                 lightingMessage = "六个 Agent 状态已同步到各自实体键；\(secondaryLightingZoneName)保持用户设置"
             } catch {
+                if case Air75LightingError.signalIndicatorModeRequired = error {
+                    agentSignalLightingPrepared = false
+                }
                 failedAgentSignalLights = desired
                 agentSignalRetryCount += 1
                 lightingMessage = "Agent 实体键指示灯写入失败；\(secondaryLightingZoneName)不受影响：\(error.localizedDescription)"
@@ -1555,6 +1571,101 @@ final class BridgeStore: ObservableObject {
             lightingBusy = false
             if failedAgentSignalLights == nil { syncAgentLighting() }
             else { scheduleAgentSignalRetry() }
+        }
+    }
+
+    private func prepareAgentSignalLighting() {
+        guard configuration.agentLightingEnabled == true,
+              !lightingBusy, !hardwareProfileBusy,
+              let controller = currentLightingDriver else { return }
+        lightingBusy = true
+        lightingMessage = "正在备份键盘灯光并准备 Agent 单键模式…"
+        Task {
+            do {
+                let pending = configurationStore.loadPendingSignalLightingBackup(
+                    profileID: controller.profileID
+                )
+                let result = try await Task.detached(priority: .userInitiated) {
+                    let states = try controller.readStates()
+                    var backupURL: URL?
+                    if pending == nil {
+                        let palette = try controller.readSignalLights(indices: Array(0...83))
+                        backupURL = try self.configurationStore.createSignalLightingBackup(
+                            states: states,
+                            signalLights: palette,
+                            profileID: controller.profileID,
+                            deviceFingerprint: nil
+                        )
+                    }
+                    let preparedStates: [Air75LightingState]
+                    if states.first(where: { $0.handle == 0 })?.backlight.mode
+                        == Air75BacklightMode.signalIndicator.rawValue {
+                        preparedStates = states
+                    } else {
+                        preparedStates = try controller.setBacklight(
+                            mode: .signalIndicator,
+                            brightness: nil,
+                            color: nil
+                        )
+                    }
+                    return (preparedStates, backupURL)
+                }.value
+                lightingStates = result.0
+                if let backupURL = result.1 { lastBackupURL = backupURL }
+                agentSignalLightingPrepared = true
+                failedAgentSignalLights = nil
+                lightingMessage = "Agent 单键模式已通过 \(lightingConnection?.displayName ?? "当前连接") 准备完成"
+            } catch {
+                agentSignalLightingPrepared = false
+                lightingMessage = "Agent 单键模式准备失败：\(error.localizedDescription)"
+            }
+            lightingBusy = false
+            if agentSignalLightingPrepared { syncAgentSignalLights() }
+        }
+    }
+
+    private func restoreSignalLightingBackup(
+        _ pending: (url: URL, backup: HardwareSignalLightingBackup)
+    ) {
+        guard !lightingBusy, let controller = currentLightingDriver else { return }
+        lightingBusy = true
+        lightingMessage = "正在恢复 Agent 模式前的完整键盘灯光…"
+        Task {
+            do {
+                let restoredStates = try await Task.detached(priority: .userInitiated) {
+                    let current = try controller.readStates()
+                    if current.first(where: { $0.handle == 0 })?.backlight.mode
+                        != Air75BacklightMode.signalIndicator.rawValue {
+                        _ = try controller.setBacklight(
+                            mode: .signalIndicator,
+                            brightness: nil,
+                            color: nil
+                        )
+                    }
+                    for start in stride(from: 0, to: pending.backup.signalLights.count, by: 14) {
+                        let end = min(start + 14, pending.backup.signalLights.count)
+                        _ = try controller.setSignalLights(
+                            Array(pending.backup.signalLights[start..<end])
+                        )
+                    }
+                    let restored = try controller.restore(pending.backup.states)
+                    try self.configurationStore.markSignalLightingBackupRestored(
+                        pending.backup,
+                        at: pending.url
+                    )
+                    return restored
+                }.value
+                lightingStates = restoredStates
+                userSignalLightsByIndex = [:]
+                managedSignalLightIndices = Set(Air75V3LightingController.taskSignalLightIndices)
+                lastAgentSignalLights = nil
+                failedAgentSignalLights = nil
+                agentSignalLightingPrepared = false
+                lightingMessage = "已恢复 Agent 模式前的完整键盘颜色和灯效"
+            } catch {
+                lightingMessage = "完整键盘灯光恢复失败：\(error.localizedDescription)"
+            }
+            lightingBusy = false
         }
     }
 

@@ -282,6 +282,72 @@ public final class ConfigurationStore: @unchecked Sendable {
     }
 
     @discardableResult
+    public func createSignalLightingBackup(
+        states: [Air75LightingState],
+        signalLights: [Air75SignalLight],
+        profileID: String = "nuphy.air75-v3",
+        deviceFingerprint: DeviceFingerprint? = nil
+    ) throws -> URL {
+        try prepareDirectories()
+        guard Set(states.map(\.handle)) == Set([0, 1]),
+              signalLights.count == 84,
+              signalLights.map(\.index) == Array(0...83) else {
+            throw StoreError.encodingFailed
+        }
+        let stamp = ISO8601DateFormatter().string(from: Date())
+            .replacingOccurrences(of: ":", with: "-")
+        let url = backupsURL.appendingPathComponent(
+            "\(stamp)-\(UUID().uuidString)-agent-signal-lighting.json"
+        )
+        let backup = HardwareSignalLightingBackup(
+            schemaVersion: 1,
+            createdAt: Date(),
+            restoredAt: nil,
+            states: states,
+            signalLights: signalLights,
+            profileID: profileID,
+            deviceFingerprint: deviceFingerprint
+        )
+        try writeSignalLightingBackup(backup, to: url)
+        return url
+    }
+
+    public func loadPendingSignalLightingBackup(
+        profileID: String = "nuphy.air75-v3"
+    ) -> (url: URL, backup: HardwareSignalLightingBackup)? {
+        for candidate in listBackups().filter({
+            $0.lastPathComponent.hasSuffix("-agent-signal-lighting.json")
+        }) {
+            guard let data = try? Data(contentsOf: candidate),
+                  let backup = try? decoder.decode(HardwareSignalLightingBackup.self, from: data),
+                  backup.profileID == profileID,
+                  backup.restoredAt == nil else { continue }
+            return (candidate, backup)
+        }
+        return nil
+    }
+
+    public func markSignalLightingBackupRestored(
+        _ backup: HardwareSignalLightingBackup,
+        at url: URL
+    ) throws {
+        var restored = backup
+        restored.restoredAt = Date()
+        try writeSignalLightingBackup(restored, to: url)
+    }
+
+    private func writeSignalLightingBackup(
+        _ backup: HardwareSignalLightingBackup,
+        to url: URL
+    ) throws {
+        let data = try encoder.encode(backup)
+        try data.write(to: url, options: [.atomic, .completeFileProtection])
+        guard let readback = try? Data(contentsOf: url), readback == data else {
+            throw StoreError.backupUnreadable
+        }
+    }
+
+    @discardableResult
     public func createSleepBackup(configuration: KeyboardSleepConfiguration, note: String,
                                   profileID: String,
                                   deviceFingerprint: DeviceFingerprint? = nil) throws -> URL {
@@ -397,6 +463,16 @@ public struct HardwareLightingBackup: Codable, Sendable {
     public var states: [Air75LightingState]
     public var note: String
     public var profileID: String?
+    public var deviceFingerprint: DeviceFingerprint?
+}
+
+public struct HardwareSignalLightingBackup: Codable, Sendable {
+    public var schemaVersion: Int
+    public var createdAt: Date
+    public var restoredAt: Date?
+    public var states: [Air75LightingState]
+    public var signalLights: [Air75SignalLight]
+    public var profileID: String
     public var deviceFingerprint: DeviceFingerprint?
 }
 

@@ -62,18 +62,7 @@ private func blinkF1Red(
     guard controller.detectedConnection() == connection else {
         throw ProbeError.verificationFailed("The requested Air75 V3 lighting interface was not found.")
     }
-    let stateController: Air75V3LightingController
-    if connection == .twoPointFourGHzReceiver {
-        let usbController = Air75V3LightingController(preferredConnection: .usbCable)
-        guard usbController.detectedConnection() == .usbCable else {
-            throw ProbeError.verificationFailed(
-                "The protected wireless write test requires USB-C for D5 backup, mode activation, and recovery."
-            )
-        }
-        stateController = usbController
-    } else {
-        stateController = controller
-    }
+    let stateController = controller
 
     let originalStates = try stateController.readStates()
     guard let originalMacState = originalStates.first(where: { $0.handle == 0 }) else {

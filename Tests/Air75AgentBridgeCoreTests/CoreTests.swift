@@ -145,6 +145,37 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(SignalLightLayout.staleManagedIndices(layoutID: "nuphy.air75-v3.ansi-d8"), [30])
     }
 
+    func testSignalLightingBackupPersistsUntilExactRestoreCompletes() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ConfigurationStore(baseURL: root)
+        let states = try [0, 1].map { handle in
+            try Air75LightingState(
+                handle: handle,
+                raw: [0x03, 0x64, 0x02, 0x00, 0x01, 0x00, 0x10, 0x20,
+                      0x30, 0x02, 0xFF, 0x02, 0x00, 0x00, 0x40, 0x50, 0x60]
+            )
+        }
+        let palette = (0...83).map {
+            Air75SignalLight(
+                index: UInt8($0),
+                color: Air75RGBColor(red: UInt8($0), green: 0x22, blue: 0x33)
+            )
+        }
+
+        let url = try store.createSignalLightingBackup(states: states, signalLights: palette)
+        let pending = try XCTUnwrap(store.loadPendingSignalLightingBackup())
+        XCTAssertEqual(
+            pending.url.standardizedFileURL.resolvingSymlinksInPath(),
+            url.standardizedFileURL.resolvingSymlinksInPath()
+        )
+        XCTAssertEqual(pending.backup.states, states)
+        XCTAssertEqual(pending.backup.signalLights, palette)
+
+        try store.markSignalLightingBackupRestored(pending.backup, at: pending.url)
+        XCTAssertNil(store.loadPendingSignalLightingBackup())
+    }
+
     func testDeveloperKeyNamesResolveOnlyInsideVerifiedANSIMap() {
         let layoutID = "nuphy.air75-v3.ansi-d8"
         XCTAssertEqual(SignalLightLayout.key(layoutID: layoutID, named: "F1")?.index, 1)

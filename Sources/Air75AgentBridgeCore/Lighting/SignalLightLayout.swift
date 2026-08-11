@@ -102,7 +102,7 @@ public enum SignalLightLayout {
     }
 
     /// Per-key colors are read independently from ordinary backlight
-    /// animation. The corresponding write path is not enabled.
+    /// animation and written through the verified D8 path.
     /// A short-lived first-run bug assigned Agent 3 to Tab (index 30), so the
     /// Air75 driver explicitly clears it unless Tab is intentionally active.
     public static func staleManagedIndices(layoutID: String?) -> Set<Int> {

@@ -26,10 +26,10 @@ The first launch follows the Mac language. Choose **Settings → General → Int
 
 | Connection | Key controls | Agent status lights | Configuration |
 | --- | --- | --- | --- |
-| USB-C | Yes | Pending per-key write verification | Full first-time setup and zone-light restore |
-| Official U1 2.4G receiver | Yes | Pending per-key write verification | Available when firmware forwards the S4 channel |
+| USB-C | Yes | Yes | Full first-time setup and verified lighting management |
+| Official U1 2.4G receiver | Yes | Yes | Verified lighting management; selected automatically from active input |
 | Bluetooth | Yes | No | Firmware does not expose a verified live lighting channel |
 
 ## Privacy
 
-The app does not record normal typing, passwords, or chat text. It stores no API keys and uploads no HID reports. Keymap and D5/D6 zone writes are restricted to the exact verified Air75 V3 ANSI identity and are backed up, written, read back, and verified before completion. Per-key RGB writes are disabled pending hardware verification.
+The app does not record normal typing, passwords, or chat text. It stores no API keys and uploads no HID reports. Keymap, D5/D6 zone, and D2/D8 per-key RGB writes are restricted to the exact verified Air75 V3 ANSI identity. Agent lighting persists a complete 84-color palette and dual-handle mode backup before changing mode, verifies every write, and restores the original palette and mode when disabled.
