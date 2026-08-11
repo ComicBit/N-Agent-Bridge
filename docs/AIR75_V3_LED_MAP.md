@@ -44,18 +44,21 @@ current driver; the numeric gaps are firmware-reserved or hidden positions.
 | Apostrophe | `0x34` | 56 |
 | Backslash | `0x31` | 57 |
 | Home | `0x4A` | 58 |
-| Z-M | `0x1D, 0x1B, 0x06, 0x19, 0x05, 0x11, 0x10` | 61-67 |
-| Comma | `0x36` | 68 |
-| Period | `0x37` | 69 |
-| Slash | `0x38` | 70 |
-| Up | `0x52` | 72 |
-| End | `0x4D` | 73 |
-| Space | `0x2C` | 77 |
-| Left | `0x50` | 81 |
-| Down | `0x51` | 82 |
-| Right | `0x4F` | 83 |
+| Z-M | `0x1D, 0x1B, 0x06, 0x19, 0x05, 0x11, 0x10` | 60-66 |
+| Comma | `0x36` | 67 |
+| Period | `0x37` | 68 |
+| Slash | `0x38` | 69 |
+| Up | `0x52` | 71 |
+| End | `0x4D` | 72 |
+| Space | `0x2C` | 76 |
+| Left | `0x50` | 80 |
+| Down | `0x51` | 81 |
+| Right | `0x4F` | 82 |
 
-The source map intentionally omits modifier positions and other physical
+The source map does not expose modifier positions as assignable keys, but
+their LEDs still occupy indexes in the physical row order. Omitting those
+positions from the index count previously made End target left Control.
+The source map otherwise intentionally omits modifier positions and other physical
 positions that are not present in the D2 read mapping. Do not infer those
 indexes from the gaps.
 

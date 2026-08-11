@@ -47,7 +47,11 @@ struct KeyboardSetupWizardView: View {
                 if step > 0 { Button(language.text("返回", "Back")) { step -= 1 } }
                 Spacer()
                 if step < 2 {
-                    Button(language.text("继续", "Continue")) { step += 1 }
+                    Button(language.text("继续", "Continue")) {
+                        step += 1
+                        if step == 1 { store.beginLearningBinding(selectedBinding) }
+                        else { store.cancelLearningBinding() }
+                    }
                         .buttonStyle(.borderedProminent)
                         .disabled(step == 0 && store.currentDevice == nil)
                 } else {
@@ -62,6 +66,9 @@ struct KeyboardSetupWizardView: View {
         }
         .frame(width: 960, height: 720)
         .background(AppPalette.pageBackground)
+        .onAppear {
+            store.wizardHardwarePreviewEnabled = store.configuration.agentLightingEnabled == true
+        }
     }
 
     private var connectionStep: some View {
@@ -95,25 +102,29 @@ struct KeyboardSetupWizardView: View {
                     Text(language.text("选择要设置的动作", "Choose an action"))
                         .font(.headline)
                     ForEach(Array(store.activeKeyBindings.enumerated()), id: \.offset) { index, binding in
-                        Button {
-                            selectedBinding = index
-                        } label: {
-                            HStack {
-                                Text(localizedBridgeAction(binding.action, language))
-                                Spacer()
-                                Text(binding.displayName).monospaced()
-                                if binding.isSupportedInputSource {
-                                    Button(role: .destructive) { store.removeBinding(index) } label: {
-                                        Image(systemName: "xmark.circle")
-                                    }
-                                    .buttonStyle(.borderless)
+                        HStack {
+                            Button {
+                                selectedBinding = index
+                                store.beginLearningBinding(index)
+                            } label: {
+                                HStack {
+                                    Text(localizedBridgeAction(binding.action, language))
+                                    Spacer()
+                                    Text(binding.displayName).monospaced()
                                 }
                             }
-                            .padding(8)
-                            .background(index == selectedBinding ? Color.accentColor.opacity(0.18) : Color.clear,
-                                        in: RoundedRectangle(cornerRadius: 7))
+                            .buttonStyle(.plain)
+                            .frame(maxWidth: .infinity)
+                            if binding.isSupportedInputSource {
+                                Button(role: .destructive) { store.removeBinding(index) } label: {
+                                    Image(systemName: "xmark.circle")
+                                }
+                                .buttonStyle(.borderless)
+                            }
                         }
-                        .buttonStyle(.plain)
+                        .padding(8)
+                        .background(index == selectedBinding ? Color.accentColor.opacity(0.18) : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: 7))
                     }
                 }
             }
@@ -134,8 +145,10 @@ struct KeyboardSetupWizardView: View {
                     assign: { index, usage in
                         store.assignBinding(index, usage: usage)
                         selectedBinding = min(index + 1, store.activeKeyBindings.count - 1)
+                        store.beginLearningBinding(selectedBinding)
                     }
                 )
+                .frame(maxWidth: .infinity, alignment: .center)
             }
         }
     }
@@ -145,10 +158,25 @@ struct KeyboardSetupWizardView: View {
             Text(language.text("实时状态教程", "Live status tutorial"))
                 .font(.title2.bold())
             Text(language.text(
-                "选一个动作和状态。屏幕上的键会立即变色；如果 USB-C 或 U1 灯光通道可用，实体键会同步显示两秒。",
-                "Choose an action and a state. Its on-screen key changes immediately; when USB-C or U1 lighting is available, the physical key mirrors it for two seconds."
+                "选一个动作和状态，屏幕上的键会立即变色。实体单键状态需要键盘的指示灯模式，会保留其他键的颜色，但会暂停原有动画。",
+                "Choose an action and state to update the on-screen key immediately. Physical per-key status requires Signal Indicator mode: other keys keep their saved colors, but their previous animation pauses while status lighting is active."
             ))
             .foregroundStyle(.secondary)
+
+            Toggle(isOn: Binding(
+                get: { store.wizardHardwarePreviewEnabled },
+                set: { enabled in
+                    store.wizardHardwarePreviewEnabled = enabled
+                    store.setAgentLightingEnabled(enabled)
+                }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(language.text("同步到实体键盘", "Mirror previews to the keyboard"))
+                    Text(language.text("使用指示灯模式；退出应用后恢复原动画", "Uses Signal Indicator mode; quitting restores the original animation"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             Picker(language.text("动作", "Action"), selection: $selectedBinding) {
                 ForEach(Array(store.activeKeyBindings.enumerated()), id: \.offset) { index, binding in
@@ -166,7 +194,7 @@ struct KeyboardSetupWizardView: View {
                             Circle()
                                 .fill(Color(hex: store.taskLightColorHex(for: state)))
                                 .frame(width: 20, height: 20)
-                            Text(state.displayName)
+                            Text(stateTitle(state))
                                 .font(.caption)
                         }
                         .frame(maxWidth: .infinity)
@@ -184,10 +212,25 @@ struct KeyboardSetupWizardView: View {
                 actionTitle: { localizedBridgeAction($0, language) },
                 assign: { _, _ in }
             )
+            .frame(maxWidth: .infinity, alignment: .center)
 
-            Text(store.lightingMessage)
+            Text(store.lightingBusy
+                 ? language.text("正在同步预览…", "Synchronizing preview…")
+                 : (store.lightingAvailable
+                    ? language.text("键盘灯光通道已就绪", "Keyboard lighting is ready")
+                    : language.text("屏幕预览可用；键盘灯光将在自动检测后同步", "On-screen preview is available; hardware lighting will mirror after automatic detection")))
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    private func stateTitle(_ state: CodexTaskLightState) -> String {
+        switch state {
+        case .idle: return language.text("空闲", "Idle")
+        case .reasoning: return language.text("正在思考", "Working")
+        case .waitingForConfirmation: return language.text("需要确认", "Needs confirmation")
+        case .complete: return language.text("任务完成", "Complete")
+        case .error: return language.text("报错", "Error")
         }
     }
 }

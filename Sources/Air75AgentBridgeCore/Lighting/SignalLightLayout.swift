@@ -154,17 +154,19 @@ public enum SignalLightLayout {
         result[0x31] = 57
         result[0x4A] = 58 // Home
 
+        // Row five includes both Shift keys. Omitting them shifted End onto
+        // firmware index 73, which is the physical left Control LED.
         let bottomLetters = [0x1D, 0x1B, 0x06, 0x19, 0x05, 0x11, 0x10]
-        for (offset, usage) in bottomLetters.enumerated() { result[usage] = 61 + offset }
-        result[0x36] = 68
-        result[0x37] = 69
-        result[0x38] = 70
-        result[0x52] = 72 // Up
-        result[0x4D] = 73 // End
-        result[0x2C] = 77 // Space
-        result[0x50] = 81 // Left
-        result[0x51] = 82 // Down
-        result[0x4F] = 83 // Right
+        for (offset, usage) in bottomLetters.enumerated() { result[usage] = 60 + offset }
+        result[0x36] = 67
+        result[0x37] = 68
+        result[0x38] = 69
+        result[0x52] = 71 // Up
+        result[0x4D] = 72 // End
+        result[0x2C] = 76 // Space
+        result[0x50] = 80 // Left
+        result[0x51] = 81 // Down
+        result[0x4F] = 82 // Right
         return result
     }()
 

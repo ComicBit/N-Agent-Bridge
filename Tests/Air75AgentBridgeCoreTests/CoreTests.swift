@@ -183,6 +183,9 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(SignalLightLayout.key(layoutID: layoutID, named: "F1")?.index, 1)
         XCTAssertEqual(SignalLightLayout.key(layoutID: layoutID, named: "F13")?.index, 1)
         XCTAssertEqual(SignalLightLayout.key(layoutID: layoutID, named: "printscreen")?.index, 13)
+        XCTAssertEqual(SignalLightLayout.key(layoutID: layoutID, named: "Page Up")?.index, 29)
+        XCTAssertEqual(SignalLightLayout.key(layoutID: layoutID, named: "End")?.index, 72)
+        XCTAssertEqual(SignalLightLayout.key(layoutID: layoutID, named: "Space")?.index, 76)
         XCTAssertNil(SignalLightLayout.key(layoutID: layoutID, named: "84"))
         XCTAssertNil(SignalLightLayout.key(layoutID: "unknown", named: "F1"))
     }

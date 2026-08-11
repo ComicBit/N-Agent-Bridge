@@ -66,13 +66,6 @@ struct ContentView: View {
                 .help(language.text("显示快速设置", "Show quick setup"))
             }
         }
-        .sheet(item: Binding(
-            get: { store.bluetoothAssociationCandidate },
-            set: { store.bluetoothAssociationCandidate = $0 }
-        )) { _ in
-            BluetoothAssociationSheet()
-                .environmentObject(store)
-        }
         .sheet(isPresented: $store.showOnboarding) {
             OnboardingView()
                 .environmentObject(store)
@@ -119,35 +112,6 @@ private struct AppSidebar: View {
             .background(.ultraThinMaterial)
         }
         .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 250)
-    }
-}
-
-private struct BluetoothAssociationSheet: View {
-    @EnvironmentObject private var store: BridgeStore
-    @Environment(\.interfaceLanguage) private var language
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            ProductLogo(size: 64, cornerRadius: 17)
-            VStack(alignment: .leading, spacing: 8) {
-                Text(language.text(
-                    "连接这台 \(store.bluetoothAssociationCandidate?.modelName ?? "NuPhy 键盘")？",
-                    "Connect this \(store.bluetoothAssociationCandidate?.modelName ?? "NuPhy keyboard")?"
-                ))
-                    .font(.title.bold())
-                Text(language.text("确认后，USB 配置会继续在这台蓝牙键盘上使用。", "Your USB configuration will continue to work with this keyboard over Bluetooth."))
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-            }
-            HStack {
-                Spacer()
-                Button(language.text("稍后", "Later")) { store.bluetoothAssociationCandidate = nil }
-                Button(language.text("连接", "Connect")) { store.confirmBluetoothAssociation() }
-                    .buttonStyle(.borderedProminent)
-            }
-        }
-        .padding(30)
-        .frame(width: 460)
     }
 }
 
@@ -351,7 +315,7 @@ struct OverviewView: View {
                     ProgressView().tint(.white).controlSize(.large)
                 } else if !store.configuration.enabled {
                     Button(primaryActionTitle) {
-                        store.oneClickEnable()
+                        store.showOnboarding = true
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
@@ -452,7 +416,7 @@ struct OverviewView: View {
         if store.currentHardwareProfileNeedsInstallation { return language.text("配置 \(store.currentModelName)", "Configure \(localizedModelName(store.currentModelName, language))") }
         if store.configuration.enabled { return language.text("已启用", "Enabled") }
         if store.installedHardwareProfileIsCurrent { return language.text("启用控制", "Enable control") }
-        return language.text("连接并启用", "Connect and enable")
+        return language.text("设置按键", "Set Up Keys")
     }
 
     private var readinessSummary: String {

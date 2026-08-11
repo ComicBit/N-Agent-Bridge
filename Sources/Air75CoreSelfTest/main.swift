@@ -279,6 +279,8 @@ check(SignalLightLayout.staleManagedIndices(layoutID: "nuphy.air75-v3.ansi-d8") 
       "Air75 V3 clears the stale Tab indicator left by the 0.13.1 binding bug")
 check(SignalLightLayout.index(layoutID: "nuphy.air75-v3.ansi-d8", usagePage: 0x07, usage: 0x1E) == 16,
       "Air75 V3 number 1 resolves to official-layout light index")
+check(SignalLightLayout.index(layoutID: "nuphy.air75-v3.ansi-d8", usagePage: 0x07, usage: 0x4D) == 72,
+      "Air75 V3 End does not target left Control LED")
 check(SignalLightLayout.index(layoutID: "nuphy.air75-v3.ansi-d8", usagePage: 0x07, usage: 0x68) == 1,
       "Air75 V3 Bridge F13 source resolves to physical F1 light")
 check(SignalLightLayout.key(layoutID: "nuphy.air75-v3.ansi-d8", named: "F1")?.index == 1,

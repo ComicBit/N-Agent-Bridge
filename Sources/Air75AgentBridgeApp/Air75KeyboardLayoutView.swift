@@ -28,7 +28,7 @@ struct Air75KeyboardLayoutView: View {
         [Key("`", usage: 0x35)]
             + (1...9).map { Key("\($0)", usage: 0x1D + $0) }
             + [Key("0", usage: 0x27), Key("-", usage: 0x2D), Key("=", usage: 0x2E),
-               Key("Delete", usage: 0x2A, width: 2), Key("M1")],
+               Key("Delete", usage: 0x2A, width: 2), Key("PgUp", usage: 0x4B)],
         [Key("Tab", usage: 0x2B, width: 1.5)]
             + zip(Array("QWERTYUIOP"), [0x14, 0x1A, 0x08, 0x15, 0x17, 0x1C, 0x18, 0x0C, 0x12, 0x13]).map {
                 Key(String($0.0), usage: $0.1)
@@ -53,16 +53,15 @@ struct Air75KeyboardLayoutView: View {
     ]
 
     var body: some View {
-        ScrollView(.horizontal) {
-            VStack(alignment: .leading, spacing: 7) {
-                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                    HStack(spacing: 6) {
-                        ForEach(Array(row.enumerated()), id: \.offset) { _, key in keyView(key) }
-                    }
+        VStack(alignment: .center, spacing: 5) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(spacing: 4) {
+                    ForEach(Array(row.enumerated()), id: \.offset) { _, key in keyView(key) }
                 }
             }
-            .padding(10)
         }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .center)
         .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Air75 V3 keyboard layout")
@@ -96,10 +95,10 @@ struct Air75KeyboardLayoutView: View {
                         .minimumScaleFactor(0.65)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 35)
+            .frame(maxWidth: .infinity, minHeight: 30)
         }
         .buttonStyle(.plain)
-        .frame(width: 42 * key.width)
+        .frame(width: 31 * key.width)
         .background(
             statusColor?.opacity(0.42)
                 ?? (assignment == nil ? Color.primary.opacity(0.045) : Color.accentColor.opacity(isTarget ? 0.28 : 0.13)),
@@ -107,7 +106,7 @@ struct Air75KeyboardLayoutView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 7)
-                .stroke(isTarget ? Color.accentColor : Color.primary.opacity(0.1), lineWidth: isTarget ? 2 : 1)
+                .stroke(isTarget ? Color.accentColor : Color.gray.opacity(0.32), lineWidth: isTarget ? 2 : 1)
         )
         .disabled(key.usage == nil || learningBindingIndex == nil)
         .accessibilityLabel(assignment.map {

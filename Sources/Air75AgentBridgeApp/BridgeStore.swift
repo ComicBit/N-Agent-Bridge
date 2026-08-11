@@ -26,6 +26,7 @@ final class BridgeStore: ObservableObject {
     @Published var learningBindingIndex: Int?
     @Published var previewBindingIndex: Int?
     @Published var previewTaskLightState: CodexTaskLightState?
+    @Published var wizardHardwarePreviewEnabled = false
     @Published var lightingStates: [Air75LightingState] = []
     @Published var lightingFirmware = "未读取"
     @Published var lightingMessage = "请用 USB-C 连接后检测" {
@@ -125,6 +126,9 @@ final class BridgeStore: ObservableObject {
                 }
                 self.syncActiveInputConfiguration()
                 self.bluetoothAssociationCandidate = devices.first(where: { $0.needsBluetoothAssociation })
+                if self.bluetoothAssociationCandidate != nil {
+                    self.confirmBluetoothAssociation()
+                }
                 if let first = devices.first {
                     let model = first.modelName ?? first.productName
                     if first.interfaces.contains(where: {
@@ -399,6 +403,7 @@ final class BridgeStore: ObservableObject {
         if !codexDesktopKeybindingsInstalled { installCodexDesktopBindings() }
         hardwareProfileMessage = "软件按键分配已启用；键盘键位表未修改"
         lastMessage = hardwareProfileMessage
+        if configuration.agentLightingEnabled == true { syncAgentLighting() }
         showOverlay("键盘控制已启用", detail: "只拦截你选择的实体按键")
     }
 
@@ -860,6 +865,9 @@ final class BridgeStore: ObservableObject {
         failedAgentSignalLights = nil
         if lightingAvailable { syncAgentLighting() }
         lastMessage = "已分配 \(learnedName) → \(actionName)"
+        if index < CodexAgentSlotResolver.slotCount {
+            previewTaskLight(.reasoning, bindingIndex: index)
+        }
     }
 
     func removeBinding(_ index: Int) {
@@ -973,6 +981,9 @@ final class BridgeStore: ObservableObject {
         if lightingAvailable { syncAgentLighting() }
         lastMessage = "已学习 \(learnedName) → \(actionName)"
         showOverlay("按键已学习", detail: "\(learnedName) → \(actionName)")
+        if index < CodexAgentSlotResolver.slotCount {
+            previewTaskLight(.reasoning, bindingIndex: index)
+        }
         return true
     }
 
@@ -1421,10 +1432,12 @@ final class BridgeStore: ObservableObject {
         guard activeKeyBindings.indices.contains(bindingIndex) else { return }
         previewBindingIndex = bindingIndex
         previewTaskLightState = state
-        configuration.agentLightingEnabled = true
-        persistConfiguration()
-        lastAgentSignalLights = nil
-        syncAgentLighting()
+        if wizardHardwarePreviewEnabled {
+            configuration.agentLightingEnabled = true
+            persistConfiguration()
+            lastAgentSignalLights = nil
+            syncAgentLighting()
+        }
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(2))
             guard let self,
@@ -1432,8 +1445,10 @@ final class BridgeStore: ObservableObject {
                   self.previewTaskLightState == state else { return }
             self.previewBindingIndex = nil
             self.previewTaskLightState = nil
-            self.lastAgentSignalLights = nil
-            self.syncAgentLighting()
+            if self.wizardHardwarePreviewEnabled {
+                self.lastAgentSignalLights = nil
+                self.syncAgentLighting()
+            }
         }
     }
 
