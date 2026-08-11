@@ -64,10 +64,9 @@ swift run --disable-sandbox air75 led map
 swift run --disable-sandbox air75 led get F1
 ```
 
-`led get` queries a named physical-key color through D2. Verified D8 writes can
-change individual Air75 V3 ANSI key LEDs over USB-C or the official U1 2.4G
-receiver and require exact D2 readback. D5/D6 remain separate whole-board and
-side-light controls and are also verified on USB-C and U1.
+`led get` queries a named physical-key color through read-only D2. Per-key
+color writes remain disabled until the real NuPhyIO transaction is captured
+and verified. D5/D6 remain separate whole-board and side-light controls.
 
 ## Architecture and protocol
 
@@ -82,8 +81,8 @@ side-light controls and are also verified on USB-C and U1.
 
 | Connection | Keyboard input | Agent status RGB | Keymap/lighting management |
 | --- | --- | --- | --- |
-| USB-C | Supported | Supported | Supported after verified read/write checks |
-| Official U1 2.4G | Supported | Supported when the S4 route responds | Supported where firmware forwards S4 |
+| USB-C | Supported | Read-only inspection | Supported after verified read/write checks |
+| Official U1 2.4G | Supported | Read-only inspection | Supported where firmware forwards S4 |
 | Bluetooth | Supported | Not verified | Not supported |
 
 Input Monitoring is used to observe dedicated controls. Accessibility is used

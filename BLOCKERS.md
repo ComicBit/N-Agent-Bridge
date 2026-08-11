@@ -21,8 +21,8 @@ the first launch. Do not disable Gatekeeper or run `spctl --master-disable`.
 
 Air75 V3 Bluetooth HID can carry ordinary key input, but the current firmware
 does not expose a verified 64-byte S4 vendor channel. Keymap installation,
-D5/D6 zone management, and D2/D8 per-key RGB management therefore require
-USB-C or the verified U1 2.4G route.
+D5/D6 zone management and D2 per-key RGB inspection therefore require USB-C
+or the verified U1 2.4G route.
 The software cannot create a BLE characteristic that the firmware does not
 expose.
 
@@ -45,8 +45,14 @@ separation would require DriverKit/HIDDriver and is outside the current scope.
 
 ## 6. Bluetooth has no verified S4 lighting route
 
-On 2026-08-11 the connected Air75 V3 passed protected D5/D6 lighting-state and
-D2/D8 per-key RGB write/readback/recovery tests over both USB-C and the official
-U1 2.4G receiver. Bluetooth exposes keyboard input but no verified 64-byte S4
-management interface, so live lighting configuration must not be advertised
-for Bluetooth.
+Bluetooth exposes keyboard input but no verified 64-byte S4 management
+interface, so live lighting configuration must not be advertised for
+Bluetooth.
+
+## 7. Per-key color writing needs a verified NuPhyIO capture
+
+D2 safely reads individual key colors, but the previously assumed D8 write
+transaction is not accepted as product evidence. Per-key writes are disabled
+for USB-C and U1 until the real NuPhyIO transaction is captured, decoded, and
+passes backup, ACK, delayed readback, and restoration checks. App-only status
+animations can coexist with the keyboard's normal backlight animation.

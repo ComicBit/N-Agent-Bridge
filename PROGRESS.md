@@ -1,5 +1,16 @@
 # Progress
 
+## 2026-08-11: Status appearance editor and safe assignment flow
+
+- Replaced the macOS color panel with an in-app status editor containing a
+  curated palette, direct HEX entry, and animated preview.
+- Each status now persists its own steady, pulse, or blink effect and speed.
+- Setup advances automatically to the next action after either clicking an
+  on-screen key or pressing a physical key.
+- Disabled per-key hardware writes at the driver boundary pending a verified
+  NuPhyIO transaction. App previews therefore coexist with the keyboard's
+  normal animation without switching firmware lighting modes.
+
 ## 2026-08-11: Runtime-only assignment wizard
 
 - Product setup no longer installs F13-F24 or writes the keyboard keymap.

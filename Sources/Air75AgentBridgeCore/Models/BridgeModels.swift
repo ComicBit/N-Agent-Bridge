@@ -428,6 +428,7 @@ public struct BridgeConfiguration: Codable, Sendable {
     /// Optional so schema 1-4 configuration files continue to decode before
     /// migration. Callers should use `resolvedTaskLightPalette`.
     public var taskLightPalette: CodexTaskLightPalette? = .default
+    public var taskLightEffects: CodexTaskLightEffects? = CodexTaskLightEffects()
     /// Optional for schema 1-8 decoding. Callers use `resolvedAgentSourceMode`.
     public var agentSourceMode: CodexAgentSourceMode? = .recent
     /// Six exact thread IDs, one for each physical Agent action.
@@ -441,6 +442,10 @@ public struct BridgeConfiguration: Codable, Sendable {
 
     public var resolvedTaskLightPalette: CodexTaskLightPalette {
         taskLightPalette ?? .default
+    }
+
+    public var resolvedTaskLightEffects: CodexTaskLightEffects {
+        taskLightEffects ?? CodexTaskLightEffects()
     }
 
     public var resolvedAgentSourceMode: CodexAgentSourceMode {

@@ -815,7 +815,7 @@ struct LightingView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             HStack(alignment: .top) {
-                PageTitle(title: language.text("灯光", "Lighting"), subtitle: language.text("普通背光与逐键 RGB；USB-C 与 U1 均已验证", "Standard backlight and per-key RGB; verified over USB-C and U1"))
+                PageTitle(title: language.text("灯光", "Lighting"), subtitle: language.text("普通背光控制与应用内 Codex 状态预览", "Standard backlight controls and in-app Codex status previews"))
                 Spacer()
                 HStack(spacing: 10) {
                     StatusPill(
@@ -915,22 +915,16 @@ struct LightingView: View {
             PremiumCard {
                 VStack(alignment: .leading, spacing: 20) {
                     HStack(alignment: .top) {
-                        CardHeading(icon: "bolt.horizontal.circle", title: language.text("Codex 任务状态灯", "Codex task status lights"), subtitle: language.text("逐键 RGB 已验证；不会改变普通侧灯", "Verified per-key RGB; standard side lights are not changed"))
+                        CardHeading(icon: "bolt.horizontal.circle", title: language.text("Codex 任务状态", "Codex task status"), subtitle: language.text("屏幕预览已启用；键盘逐键写入等待实机验证", "On-screen effects are available; physical per-key writes await hardware verification"))
                         Spacer()
-                        Toggle("", isOn: Binding(
-                            get: { store.configuration.agentLightingEnabled == true && store.signalLightingSupported },
-                            set: { store.setAgentLightingEnabled($0) }
-                        ))
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .disabled(!store.lightingAvailable || store.lightingBusy || !store.signalLightingSupported)
                     }
 
-                    if store.configuration.agentLightingEnabled == true && store.signalLightingSupported {
                         HStack(spacing: 18) {
-                            Circle()
-                                .fill(Color(hex: store.taskLightColorHex(for: store.codexTopTaskLightState)))
-                                .frame(width: 28, height: 28)
+                            StatusEffectDot(
+                                hex: store.taskLightColorHex(for: store.codexTopTaskLightState),
+                                effect: store.taskLightEffect(for: store.codexTopTaskLightState),
+                                size: 28
+                            )
                                 .overlay(Circle().stroke(Color.primary.opacity(0.14)))
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(language.text("任务汇总 · \(localizedTaskLightState(store.codexTopTaskLightState, language))", "Task summary · \(localizedTaskLightState(store.codexTopTaskLightState, language))"))
@@ -957,17 +951,18 @@ struct LightingView: View {
                                     TaskLightColorEditor(
                                         state: state,
                                         hex: store.taskLightColorHex(for: state),
-                                        onChange: { store.setTaskLightColor(state, hex: $0) }
+                                        effect: store.taskLightEffect(for: state),
+                                        onChange: { store.setTaskLightColor(state, hex: $0) },
+                                        onEffectChange: { store.setTaskLightEffect(state, effect: $0) }
                                     )
                                 }
                             }
-                            Text(language.text("颜色保存在本机，并通过当前 USB-C 或 U1 通道应用到 Agent 实体键。", "Colors are stored on this Mac and applied to Agent keys over the active USB-C or U1 route."))
+                            Text(language.text("每个状态的颜色、动画和速度都保存在本机。在逐键写入获得验证前，这些效果只在应用内预览，不会中断键盘原有动画。", "Each status keeps its own color, animation, and speed. Until per-key writes are verified, effects preview in the app and never interrupt the keyboard's normal animation."))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
-                    }
 
-                    if store.configuration.agentLightingEnabled == true && store.signalLightingSupported { Divider() }
+                    Divider()
 
                     VStack(alignment: .leading, spacing: 16) {
                             HStack {
@@ -1096,7 +1091,7 @@ struct SixTaskStatusRow: View {
                     .help(snapshot.map { language.text("任务 \(index + 1)：\(localizedTaskLightState($0.state, language))", "Task \(index + 1): \(localizedTaskLightState($0.state, language))") } ?? language.text("任务 \(index + 1)：未分配", "Task \(index + 1): Unassigned"))
                 }
             }
-            Text(language.text("六个 Agent 键按当前来源模式绑定；逐键灯光会自动跟随实体位置", "Six Agent keys follow the selected source mode; per-key lighting automatically follows their physical locations."))
+            Text(language.text("六个 Agent 键按当前来源模式绑定；状态预览会跟随你分配的实体位置", "Six Agent keys follow the selected source mode; status previews follow the physical positions you assign."))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -1107,28 +1102,112 @@ private struct TaskLightColorEditor: View {
     @Environment(\.interfaceLanguage) private var language
     let state: CodexTaskLightState
     let hex: String
+    let effect: CodexTaskLightEffect
     let onChange: (String) -> Void
+    let onEffectChange: (CodexTaskLightEffect) -> Void
+    @State private var showingColorEditor = false
+    @State private var draftHex = ""
+
+    private let swatches = [
+        "#FFFFFF", "#B8C0CC", "#168BFF", "#5E5CE6", "#BF5AF2",
+        "#FF2D55", "#FF453A", "#FF9F0A", "#FFD60A", "#30D158", "#64D2FF", "#00C7BE"
+    ]
 
     var body: some View {
-        HStack(spacing: 10) {
-            ColorPicker(
-                "",
-                selection: Binding(
-                    get: { Color(hex: hex) },
-                    set: { color in
-                        if let value = color.rgbHex { onChange(value) }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Button { showingColorEditor.toggle() } label: {
+                    StatusEffectDot(hex: hex, effect: effect, size: 26)
+                        .overlay(Circle().stroke(Color.primary.opacity(0.18)))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showingColorEditor, arrowEdge: .bottom) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(language.text("选择状态颜色", "Choose status color"))
+                            .font(.headline)
+                        LazyVGrid(columns: Array(repeating: GridItem(.fixed(32)), count: 6), spacing: 10) {
+                            ForEach(swatches, id: \.self) { swatch in
+                                Button { onChange(swatch) } label: {
+                                    Circle().fill(Color(hex: swatch)).frame(width: 28, height: 28)
+                                        .overlay(Circle().stroke(hex == swatch ? Color.accentColor : Color.primary.opacity(0.16), lineWidth: hex == swatch ? 3 : 1))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        HStack {
+                            Text("HEX").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                            TextField("#168BFF", text: Binding(
+                                get: { draftHex.isEmpty ? hex : draftHex },
+                                set: { draftHex = $0.uppercased() }
+                            ))
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                            .onSubmit {
+                                if Air75RGBColor(hex: draftHex) != nil { onChange(draftHex) }
+                            }
+                        }
                     }
-                ),
-                supportsOpacity: false
-            )
-            .labelsHidden()
-            Text(shortLightName(state, language))
-                .font(.caption.weight(.semibold))
-            Spacer()
+                    .padding(18)
+                    .frame(width: 276)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(shortLightName(state, language)).font(.caption.weight(.semibold))
+                    Text(hex.uppercased()).font(.caption2.monospaced()).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+
+            Picker(language.text("动画", "Animation"), selection: Binding(
+                get: { effect.animation },
+                set: { onEffectChange(CodexTaskLightEffect(animation: $0, speed: effect.speed)) }
+            )) {
+                Text(language.text("常亮", "Steady")).tag(CodexTaskLightAnimation.steady)
+                Text(language.text("呼吸", "Pulse")).tag(CodexTaskLightAnimation.pulse)
+                Text(language.text("闪烁", "Blink")).tag(CodexTaskLightAnimation.blink)
+            }
+            .pickerStyle(.segmented)
+
+            Picker(language.text("速度", "Speed"), selection: Binding(
+                get: { effect.speed },
+                set: { onEffectChange(CodexTaskLightEffect(animation: effect.animation, speed: $0)) }
+            )) {
+                Text(language.text("慢", "Slow")).tag(CodexTaskLightAnimationSpeed.slow)
+                Text(language.text("标准", "Normal")).tag(CodexTaskLightAnimationSpeed.normal)
+                Text(language.text("快", "Fast")).tag(CodexTaskLightAnimationSpeed.fast)
+            }
+            .pickerStyle(.menu)
+            .disabled(effect.animation == .steady)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(AppPalette.softFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .onAppear { draftHex = hex }
+        .onChange(of: hex) { draftHex = $0 }
+    }
+}
+
+private struct StatusEffectDot: View {
+    let hex: String
+    let effect: CodexTaskLightEffect
+    let size: CGFloat
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let phase = timeline.date.timeIntervalSinceReferenceDate
+                .truncatingRemainder(dividingBy: effect.speed.duration) / effect.speed.duration
+            let level: Double = {
+                switch effect.animation {
+                case .steady: return 1
+                case .pulse: return 0.55 + 0.45 * (0.5 - 0.5 * cos(phase * .pi * 2))
+                case .blink: return phase < 0.5 ? 1 : 0.22
+                }
+            }()
+            Circle()
+                .fill(Color(hex: hex))
+                .frame(width: size, height: size)
+                .opacity(level)
+                .shadow(color: Color(hex: hex).opacity(level * 0.55), radius: 7)
+        }
     }
 }
 

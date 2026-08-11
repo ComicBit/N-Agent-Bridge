@@ -879,6 +879,7 @@ final class BridgeStore: ObservableObject {
         if index < CodexAgentSlotResolver.slotCount {
             previewTaskLight(.reasoning, bindingIndex: index)
         }
+        advanceLearning(after: index)
     }
 
     func removeBinding(_ index: Int) {
@@ -995,7 +996,14 @@ final class BridgeStore: ObservableObject {
         if index < CodexAgentSlotResolver.slotCount {
             previewTaskLight(.reasoning, bindingIndex: index)
         }
+        advanceLearning(after: index)
         return true
+    }
+
+    private func advanceLearning(after index: Int) {
+        let next = index + 1
+        guard activeKeyBindings.indices.contains(next) else { return }
+        beginLearningBinding(next)
     }
 
     func refreshLighting() {
@@ -1411,6 +1419,17 @@ final class BridgeStore: ObservableObject {
         } else {
             lightingMessage = "颜色已保存；连接灯光通道后会自动应用到 Agent 实体键"
         }
+    }
+
+    func taskLightEffect(for state: CodexTaskLightState) -> CodexTaskLightEffect {
+        configuration.resolvedTaskLightEffects.effect(for: state)
+    }
+
+    func setTaskLightEffect(_ state: CodexTaskLightState, effect: CodexTaskLightEffect) {
+        var effects = configuration.resolvedTaskLightEffects
+        effects.setEffect(effect, for: state)
+        configuration.taskLightEffects = effects
+        persistConfiguration()
     }
 
     func resetTaskLightColors() {

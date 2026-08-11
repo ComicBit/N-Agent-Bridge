@@ -29,6 +29,63 @@ public enum CodexTaskLightState: String, Codable, CaseIterable, Sendable {
     }
 }
 
+public enum CodexTaskLightAnimation: String, Codable, CaseIterable, Sendable {
+    case steady, pulse, blink
+}
+
+public enum CodexTaskLightAnimationSpeed: String, Codable, CaseIterable, Sendable {
+    case slow, normal, fast
+
+    public var duration: Double {
+        switch self {
+        case .slow: return 2.4
+        case .normal: return 1.35
+        case .fast: return 0.7
+        }
+    }
+}
+
+public struct CodexTaskLightEffect: Codable, Equatable, Sendable {
+    public var animation: CodexTaskLightAnimation
+    public var speed: CodexTaskLightAnimationSpeed
+
+    public init(animation: CodexTaskLightAnimation = .steady,
+                speed: CodexTaskLightAnimationSpeed = .normal) {
+        self.animation = animation
+        self.speed = speed
+    }
+}
+
+public struct CodexTaskLightEffects: Codable, Equatable, Sendable {
+    public var idle = CodexTaskLightEffect()
+    public var reasoning = CodexTaskLightEffect(animation: .pulse)
+    public var complete = CodexTaskLightEffect(animation: .pulse, speed: .slow)
+    public var waitingForConfirmation = CodexTaskLightEffect(animation: .blink)
+    public var error = CodexTaskLightEffect(animation: .blink, speed: .fast)
+
+    public init() {}
+
+    public func effect(for state: CodexTaskLightState) -> CodexTaskLightEffect {
+        switch state {
+        case .idle: return idle
+        case .reasoning: return reasoning
+        case .complete: return complete
+        case .waitingForConfirmation: return waitingForConfirmation
+        case .error: return error
+        }
+    }
+
+    public mutating func setEffect(_ effect: CodexTaskLightEffect, for state: CodexTaskLightState) {
+        switch state {
+        case .idle: idle = effect
+        case .reasoning: reasoning = effect
+        case .complete: complete = effect
+        case .waitingForConfirmation: waitingForConfirmation = effect
+        case .error: error = effect
+        }
+    }
+}
+
 /// User-selectable colors for Codex Agent status indicators. Keeping the
 /// palette in the persisted configuration means changing a color never changes
 /// the task-state parser or the keyboard protocol bytes that are written.

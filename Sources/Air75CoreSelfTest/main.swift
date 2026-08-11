@@ -226,8 +226,8 @@ let d8Example = [
 ].flatMap(\.encodedBytes)
 check(d8Example == [0x00, 0xFF, 0x00, 0x00, 0x01, 0x00, 0xFF, 0x00],
       "D8 signal light payload matches firmware protocol")
-check(Air75V3LightingController().supportsPerKeyColorWrite,
-      "per-key RGB writing is enabled after USB and U1 D8/D2 hardware verification")
+check(!Air75V3LightingController().supportsPerKeyColorWrite,
+      "per-key RGB writing remains disabled pending a verified NuPhyIO capture")
 
 let handshakeChallenge = (0..<NuPhyS4ProtocolCodec.maximumPayloadSize).map { UInt8($0) }
 let deterministicHandshake = NuPhyS4ProtocolCodec.Handshake(challenge: handshakeChallenge)
